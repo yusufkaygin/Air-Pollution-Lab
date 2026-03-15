@@ -1,0 +1,989 @@
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hava Kalitesi - İstasyon Veri İndirme | T.C. Çevre, Şehircilik ve İklim Değişikliği Bakanlığı</title>
+
+    <!--Default-->
+    <link href="/content/themes/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/Content/Themes/css/plugins/jQueryUI/jquery-ui.css" rel="stylesheet" />
+    <link href="/content/themes/font-awesome/css/font-awesome.css" rel="stylesheet" />
+    <link href="/content/themes/css/animate.css" rel="stylesheet">
+    <link href="/Content/Themes/css/plugins/toastr/toastr.min.css" rel="stylesheet" />
+    <link href="/content/themes/css/style.css" rel="stylesheet">
+    <link href="/Content/Plugins/Loading/css/jquery.loadingModal.min.css" rel="stylesheet" />
+    <link href="/Content/Plugins/Bootstrap-Dialog/dist/css/bootstrap-dialog.min.css" rel="stylesheet" />
+    <link href="/Content/Plugins/sweetAlert/css/sweetalert.css" rel="stylesheet" />
+    <link href="/Content/Plugins/Fontello/css/fontello.css" rel="stylesheet" />
+    <!--Default-->
+    <!--Harita-->
+    <link href="/Content/Harita/fonts/MapIcon/flaticon.css?v=zxck45lhas" rel="stylesheet" />
+    <link href="/Content/Harita/css/ol.custom.css?v=zxck45lhas" rel="stylesheet" />
+    <link href="/Content/Custom/css/custom.css?v=zxck45lhas" rel="stylesheet" />
+    <link href="/Content/Custom/css/yazitipi.css?v=zxck45lhas" rel="stylesheet" />
+    <!--Harita-->
+    <!--Kendo-->
+
+
+    <link href="/Content/Kendo/css/kendo.common-material.css" rel="stylesheet" type="text/css" />
+    <link href="/Content/Kendo/css/kendo.material.min.css" rel="stylesheet" type="text/css" />
+
+    <link href="/Content/Kendo/css/kendo.mobile.all.min.css" rel="stylesheet" type="text/css" />
+    <link href="/Content/Kendo/css/kendo.dataviz.min.css" rel="stylesheet" type="text/css" />
+
+    <link href="/Content/Kendo/css/kendo.dataviz.material.min.css" rel="stylesheet" type="text/css" />
+    <!--Kendo-->
+
+    <link href="/Content/Custom/fonts/infolineIcon/style.css?v=zxck45lhas" rel="stylesheet" />
+    <link href="/Content/Custom/css/_Layout.css?v=zxck45lhas" rel="stylesheet" />
+    <link rel="shortcut icon" type="image/png" href="/Content/Custom/img/cevre_favicon.ico" />
+    
+
+    <!--Default-->
+    <script src="/content/themes/js/jquery-3.7.1.js"></script>
+    <script src="/Content/Themes/js/jquery-ui-1.14.1.min.js"></script>
+    <script src="/content/themes/js/bootstrap.min.js"></script>
+    <script src="/content/themes/js/plugins/metisMenu/jquery.metisMenu.js"></script>
+    <script src="/content/themes/js/plugins/slimscroll/jquery.slimscroll.min.js"></script>
+    <script src="/Content/Themes/js/plugins/toastr/toastr.min.js"></script>
+    <script src="/content/themes/js/inspinia.js?v=zxck45lhas"></script>
+    <script src="/content/themes/js/plugins/pace/pace.min.js"></script>
+    <script src="/Content/Themes/js/plugins/linq/jquery.linq.min.js"></script>
+    <script src="/Content/Themes/js/jquery.livequery.min.js"></script>
+    <script src="/Content/Plugins/html2canvas/FileSaver.js"></script>
+    <script src="/Content/Plugins/Loading/js/jquery.loadingModal.min.js"></script>
+    <script src="/Content/Plugins/Bootstrap-Dialog/dist/js/bootstrap-dialog.js?v=zxck45lhas"></script>
+    <script src="/Content/Plugins/Validator/js/Validator.js?v=zxck45lhas"></script>
+    <script src="/Content/Plugins/sweetAlert/js/sweetalert.min.js"></script>
+    <script src="/Content/Plugins/Slugit/jquery.slugit.js"></script>
+    <script src="/Content/Themes/js/plugins/staps/jquery.steps.min.js"></script>
+    <!--Default-->
+    
+    <!--Kendo-->
+    <script src="/Content/Kendo/js/kendo.all.min.js"></script>
+    <script src="/Content/Kendo/js/kendo.aspnetmvc.min.js"></script>
+    <script src="/Content/Kendo/js/messages/kendo.messages.en-US.min.js"></script>
+    <script src="/Content/Kendo/js/messages/kendo.messages.tr-TR.min.js"></script>
+    <script src="/Content/Kendo/js/cultures/kendo.culture.tr-TR.min.js"></script>
+    <script src="/Content/Kendo/js/cultures/kendo.culture.en-US.min.js"></script>
+    <!--Kendo-->
+    <!--Harita-->
+    <script src="/Content/harita/js/jsPDF.js"></script>
+    <script src="/Content/harita/js/jQuery.Print.js"></script>
+    <script src="/content/harita/data/projlist.js"></script>
+    <script src="/content/harita/js/proj4.js"></script>
+    <script src="/content/harita/js/turf.min.js"></script>
+    <script src="/Content/Harita/js/ol.js"></script>
+    <script src="/Content/Harita/js/ol.extensions.js?v=zxck45lhas"></script>
+    <script src="/Content/Harita/js/ol.custom.js?v=zxck45lhas"></script>
+    <!--Harita-->
+    <!--Custom-->
+    <script src="/Content/Plugins/xlsx/jszip.js"></script>
+    <script src="/Content/Plugins/xlsx/xlsx.js"></script>
+    <script src="/Content/Custom/js/master.js?v=zxck45lhas"></script>
+    <!--Custom-->
+    <style type="text/css">
+        .minimalize-styl-2, .navbar-static-side {
+            display: none;
+        }
+
+        .title-action {
+            padding-right: 30px;
+        }
+    </style>
+    <script type="text/javascript">
+
+        var height = window.screen.height; // $(document).height();
+        var scroll = (height / 100) * 70;
+
+        $(document).ready(function () {
+            if (window.localStorage["language"] == "TR") {
+                kendo.culture("tr-TR");
+            } else if (window.localStorage["language"] == "ENG") {
+                kendo.culture("en-US");
+            } else {
+                kendo.culture("tr-TR");
+            }
+            feedback();
+            $('[data-toggle="tooltip"]').tooltip();
+
+            var width = ($('#side-menu').width() + 10);
+            $('#myBtn').css('left', width + 'px');
+
+            $('.minimalize-styl-2').click(function (c) {
+                setTimeout(function () {
+                    var width = ($('#side-menu').width() + 10);
+                    $('#myBtn').css('left', width + 'px');
+                }, 300);
+            });
+
+            $(window).scroll(function () {
+                if ($(this).scrollTop() > scroll) {
+                    $('#myBtn').fadeIn();
+                } else {
+                    $('#myBtn').fadeOut();
+                }
+            });
+        })
+            .on('click', '[data-scroll="top"]', function (e) {
+                $("html, body").animate({ scrollTop: 0 }, "slow");
+            });
+    </script>
+</head>
+
+
+<body class="fixed-sidebar no-skin-config">
+
+    <div id="wrapper">
+        <div id="page-wrapper" class="gray-bg" style="margin: 0px">
+
+            <div class="row wrapper border-bottom white-bg page-heading">
+                <div class="col-lg-10">
+                    <div style="height:80px;line-height:80px;float:left;">
+                        <a style="margin:30px 30px 0 0;" class="navbar-minimalize minimalize-styl-2 btn btn-primary " href="#"><i class="fa fa-bars"></i> </a>
+                    </div>
+
+                    <h2>Hava Kalitesi - İstasyon Veri İndirme</h2>
+                    <ol class="breadcrumb">
+                        <li>
+                            <a href="/">Anasayfa</a>
+                        </li>
+                            <li>
+                                <a href="/STN/STN_Report/DataBank"> Veri Bankası</a>
+                            </li>
+                        <li class="active">
+                            <strong>Hava Kalitesi - İstasyon Veri İndirme</strong>
+                        </li>
+                    </ol>
+                </div>
+                
+            </div>
+
+            <div class="wrapper wrapper-content clearfix">
+                
+<script src="/Content/Plugins/bootstrap-toggle/js/bootstrap-toggle.min.js"></script>
+<link href="/Content/Plugins/bootstrap-toggle/css/bootstrap-toggle.min.css" rel="stylesheet" />
+<style type="text/css">
+    .button-date {
+        font-size: 14px;
+        background: #1c84c6;
+        border: 1px solid #1c84c6;
+        border-radius: 5px;
+        box-shadow: rgba(0, 0, 0, 0.1) 1px 2px 4px;
+        box-sizing: border-box;
+        color: #FFFFFF;
+        cursor: pointer;
+        padding: 6px 6px;
+        display: inline-block;
+        font-family: nunito, roboto, proxima-nova, "proxima nova", sans-serif;
+        line-height: 0px;
+        min-height: 35px;
+        outline: 0;
+        text-align: center;
+        text-rendering: geometricprecision;
+        text-transform: none;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: manipulation;
+        vertical-align: middle;
+        transition-duration: 0.1s, 0.1s;
+    }
+
+        .button-date:hover,
+        .button-date:active {
+            background-color: #18a689;
+            transform: scale(1.05);
+            font-weight: 800;
+            border-color: #18a689;
+            color: white !important;
+            transition-duration: 0.3s, 0.3s;
+        }
+
+    .activebutton {
+        background-color: #18a689;
+        transform: scale(1.05);
+        font-weight: 800;
+        border-color: #18a689;
+        color: white !important;
+        transition-duration: 0.3s, 0.3s;
+    }
+
+    .fixedStart .btn.active {
+        background-color: #ed5565 !important;
+        border-color: #ed5565 !important;
+        color: #FFFFFF;
+    }
+
+    .k-multiselect-wrap {
+        height: 33px !important;
+    }
+
+    .k-dropdown-wrap {
+        height: 33px !important;
+    }
+
+    .k-numeric-wrap {
+        height: 33px !important;
+    }
+
+    #StationDataDownloadForm .btn.active {
+        background-color: #18a689;
+        border-color: #18a689;
+        color: #FFFFFF;
+    }
+
+    #StationDataDownloadForm .form-group .form-group {
+        margin-bottom: 0px;
+    }
+
+    #StationDataDownloadForm .k-list-container .k-list-optionlabel:before {
+        content: 'Temizle';
+        display: block;
+        position: absolute;
+        background-color: #fff;
+        width: 100%;
+        margin-left: -5px;
+        color: #1ab394;
+        text-align: center;
+        cursor: pointer;
+    }
+
+    [role="grid"] {
+        touch-action: auto !important;
+    }
+
+    .fixedStart .btn.active {
+        background-color: #ed5565 !important;
+        border-color: #ed5565 !important;
+        color: #FFFFFF;
+    }
+
+    .fixedStart #fixed {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        height: 50px;
+        width: 50px;
+        background-color: #2AA9E0;
+        border-radius: 50%;
+        box-shadow: 0 0 6px #878787;
+        cursor: pointer;
+        z-index: 3;
+        background-position: 46% center;
+        background-size: 16px auto;
+        background-repeat: no-repeat;
+    }
+
+    .fixedStart input#fixed {
+        display: none;
+    }
+
+    .fixedStart #fixed ~ .fix-buttons {
+        z-index: 2;
+        position: fixed;
+        bottom: 27px;
+        right: 25px;
+        opacity: 0;
+        transition: 0.5s ease;
+        cursor: pointer;
+    }
+
+    .fixedStart .fix-buttons a {
+        float: left;
+        margin-left: 12px;
+        width: 42px;
+        height: 42px;
+        color: white;
+        padding: 2px;
+    }
+
+        .fixedStart .fix-buttons a i {
+            padding: 5px;
+            width: 30px;
+            line-height: 28px;
+            text-align: center;
+            box-sizing: content-box;
+        }
+
+
+    .fixedStart #fixed i {
+        padding: 14px;
+        width: 35px;
+        line-height: 52px;
+        text-align: center;
+        box-sizing: content-box;
+        color: white;
+        font-size: 20px;
+    }
+
+    .fixedStart input:checked ~ #fixed ~ .fix-buttons {
+        opacity: 1;
+        visibility: visible !important;
+    }
+
+    .fixedStart input:checked ~ #fixed ~ .fix-buttons {
+        right: 90px;
+    }
+
+
+    @media (max-width: 768px) {
+        .fixedStart .fix-buttons {
+            width: 100%;
+            visibility: visible;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .fixedStart input:checked ~ #fixed ~ .fix-buttons {
+            right: 20px;
+        }
+    }
+
+    .fixedStart .fix-buttons {
+        width: 460px;
+        visibility: visible;
+    }
+
+    @media(max-width: 768px) {
+        .fixedStart .fix-buttons {
+            width: 360px;
+            visibility: visible;
+        }
+    }
+
+    #fixedRow {
+        margin-left: 50px;
+    }
+
+
+    @media(max-width: 769px) {
+        #fixedRow {
+            margin-left: 10px;
+        }
+    }
+
+    @media(max-width: 769px) {
+        #fixedRow label {
+            font-size: smaller;
+        }
+    }
+
+    .fixedStart .fix-buttons a:nth-child(1) {
+        background: #004A7F;
+    }
+
+    .fixedStart .fix-buttons a:nth-child(2) {
+        background: orange;
+    }
+
+    .fixedStart .fix-buttons a:nth-child(3) {
+        background: #DD4B39;
+    }
+
+    .fixedStart .fix-buttons a:nth-child(4) {
+        background: #a0a0a0;
+    }
+
+    .fixedStart .fix-buttons a:nth-child(5) {
+        background: #89b744;
+    }
+
+    .fixedStart .fix-buttons a:nth-child(6) {
+        background: #1d6a75;
+    }
+
+    .fixedStart .fix-buttons a:nth-child(7) {
+        background: #4E5EF1;
+    }
+
+    .fixedStart .fix-buttons a:nth-child(8) {
+        background: #26788e;
+    }
+
+    .fixedStart .fix-buttons a:nth-child(9) {
+        background: #28a799;
+    }
+
+    .fixedStart .fix-buttons a:nth-child(10) {
+        background: #a7284e;
+    }
+
+    .fixedStart .fix-buttons a:nth-child(11) {
+        background: #de5f5f;
+    }
+
+    .fixedStart .fix-buttons a:nth-child(12) {
+        background: #4E5EF1;
+    }
+
+    .fixedStart .fix-buttons a:nth-child(13) {
+        background: #e9ce2e;
+    }
+
+    .fixedStart .fix-buttons a:nth-child(14) {
+        background: #de5f5f;
+    }
+
+    .fixedStart .fix-buttons a:nth-child(15) {
+        background: #de5f5f;
+    }
+
+    .fixedStart .fix-buttons a:nth-child(16) {
+        background: #de5f5f;
+    }
+
+    .fixedStart .fix-buttons a:nth-child(17) {
+        background: #de5f5f;
+    }
+</style>
+
+    <script src="/Content/Plugins/HighCharts/js/highstock.js"></script>
+    <script src="/Content/Plugins/HighCharts/js/exportingNew.js"></script>
+    <script src="/Content/Plugins/HighCharts/js/OfflineExporting.js"></script>
+    <script src="/Content/Plugins/HighCharts/js/svg2pdf.js"></script>
+    <script src="/Content/Plugins/HighCharts/js/jspdf.js"></script>
+
+<script src="/Content/Custom/js/ReportModel.js?v=zxck45lhas"></script>
+<script type="text/javascript">
+
+    function setVisibility(element) {
+        var id = $(element).attr('data-id')
+        $("#" + id).toggle(); // Div'in görünürlüğünü değiştir
+
+        var divId = $("#" + id).attr('id');
+        var divState = $("#" + id).is(':visible') ? 'visible' : 'hidden';
+
+        setCookie(divId, divState, 30); // Çereze durumu kaydet (30 gün süresiyle)
+
+    }
+
+    // Çerezleri ayarla
+    function setCookie(cookieName, cookieValue, expirationDays) {
+        var d = new Date();
+        d.setTime(d.getTime() + (expirationDays * 24 * 60 * 60 * 1000));
+        var expires = "expires=" + d.toUTCString();
+        document.cookie = cookieName + "=" + cookieValue + ";" + expires + ";path=/";
+    }
+
+    // Çerezleri al
+    function getCookie(cookieName) {
+        var name = cookieName + "=";
+        var decodedCookie = decodeURIComponent(document.cookie);
+        var cookies = decodedCookie.split(';');
+        for (var i = 0; i < cookies.length; i++) {
+            var cookie = cookies[i];
+            while (cookie.charAt(0) === ' ') {
+                cookie = cookie.substring(1);
+            }
+            if (cookie.indexOf(name) === 0) {
+                return cookie.substring(name.length, cookie.length);
+            }
+        }
+        return "";
+    }
+
+    $(document).ready(function () {
+        $('.toggleDiv').each(function () {
+            var divId = $(this).attr('id');
+            var divState = getCookie(divId); // Çerezi oku
+
+            if (divState === 'hidden') {
+                $(this).hide(); // Div'i gizle
+                $("[data-id=" + divId + "]").attr("checked", false);
+                $("[data-id=" + divId + "]").prop("checked", false);
+                $("[data-id=" + divId + "]").parent("div").removeClass('btn-success')
+                $("[data-id=" + divId + "]").parent("div").addClass('btn-danger off')
+            }
+            else if (divState === 'visible' || $(this).css("display") == 'block' || $(this).css("display") == '') {
+                $(this).show();
+                $("[data-id=" + divId + "]").prop("checked", true);
+                $("[data-id=" + divId + "]").prop("checked", true);
+                $("[data-id=" + divId + "]").parent("div").removeClass('btn-danger off')
+                $("[data-id=" + divId + "]").parent("div").addClass('btn-success')
+            }
+            else {
+                if ($(this).css("display") == 'none') {
+                    $(this).hide(); // Div'i gizle
+                    $("[data-id=" + divId + "]").attr("checked", false);
+                    $("[data-id=" + divId + "]").prop("checked", false);
+                    $("[data-id=" + divId + "]").parent("div").removeClass('btn-success')
+                    $("[data-id=" + divId + "]").parent("div").addClass('btn-danger off')
+                }
+            }
+        });
+    })
+</script>
+
+<script type="text/javascript">
+
+    function isMobile() {
+        if ($(window).width() < 768) {
+            return false
+        }
+        else {
+            return true
+        }
+    };
+
+    var StationByColors = [];
+
+    var _StationDataDownload = {
+
+        Base: null,
+        Params: [],
+        initOthers: function () {
+
+            _StationDataDownload.Base.SummaryGrid.init({
+                groupField: 'Station_Title',
+                StationDataDownload: _StationDataDownload.Base.Data.Summaries,
+                data: _StationDataDownload.Base.Data.Summaries
+            });
+
+            var editedData = {};
+            $.each(_StationDataDownload.Base.Data.Data, function (i, item) {
+
+                if (editedData[item.ReadTime] == undefined) {
+                    editedData[item.ReadTime] = { ReadTime: new Date(item.ReadTime) };
+                }
+
+                $.each(_StationDataDownload.Base.Data.Monitors, function (i1, item1) {
+                    if (item.Stationid == item1.StationId) {
+                        editedData[item.ReadTime][item1.Parameter + '_' + item1.StationId.substring(0, 8)] = kendo.parseFloat(item[item1.Parameter]);
+                    }
+                });
+
+            });
+            editedData = $.Enumerable.From(editedData).Select(function (a) { return a.Value; }).ToArray();
+            console.log(editedData);
+
+            StationByColors = [];
+            //for (var i = 0; i < _StationDataDownload.Base.Data.Stations.length; i++) {
+            //    var obj = {};
+            //    obj["Color"] = "#" + (Math.random() * 0xDC8D8D << 0).toString(16).padStart(6, '0');
+            //    obj["StationId"] = _StationDataDownload.Base.Data.Stations[i].id;
+            //    StationByColors.push(obj);
+            //}
+
+            console.log(this.StationByColors);
+            var newColumns = $.Enumerable.From(_StationDataDownload.Base.Data.Monitors)
+                .GroupBy(function (a) { return a.StationId; })
+                .Select(function (a) {
+                    return {
+
+
+
+                        title: _StationDataDownload.Base.Data.Stations.filter(x => x.id == a.source[0].StationId)[0].Name,
+                        columns: a.source.map(function (item, i) {
+
+                            return {
+                                field: (item.Parameter + '_' + item.StationId.substring(0, 8)),
+                                title: (item.ParameterText + ' ( ' + item.Unit + ' )'),
+                                width: 200,
+                                format: '{0:N2}',
+                                type: 'number',
+                                template: function (dataItem) {
+                                    var _value = dataItem[item.Parameter + '_' + item.StationId.substring(0, 8)];
+                                    var value = _value != null ? kendo.toString(_value, 'N' + item.FloatPercent) : '-';
+
+
+
+                                    return value;
+
+                                }
+                            };
+
+                        })
+
+                    };
+                })
+                .ToArray();
+
+            _StationDataDownload.Base.DetailGrid.init({
+                Data: editedData,
+                FileName: 'Veri Detayları' + new Date().toLocaleString(),
+                Column: $.merge([{ field: "ReadTime", title: "Tarih", format: _StationDataDownload.Base.ReadTimeFormat(), width: 200, locked: isMobile(), filterable: { ui: 'datetimepicker' }, type: 'date' }], newColumns),
+            });
+
+        },
+
+    };
+
+    $(document)
+
+        .on('ready', function () {
+
+            _StationDataDownload.Base = new ReportModel({
+                Element: $('#StationDataDownloadForm'),
+                Model: {"StationId":null,"StationType_Title":"Hava Kalitesi","GroupKey":"00000000-0000-0000-0000-000000000000","StationIds":null,"NearestStationIds":null,"Parameters":null,"StartDateTime":"2026-02-13T20:00:00","EndDateTime":"2026-03-15T20:00:00","DataPeriods":8,"StationType":1,"FixtureId":null,"BasinId":null,"StationCompanyId":null,"StationGroupId":null,"CityId":null,"StationSubType":null,"AreaType":null,"SourceType":null,"DeviceType":null,"SubType_Title":"Tip Seçiniz...","ParametersText":[],"DataBank":true},
+                initOthers: _StationDataDownload.initOthers,
+                LoadDefaults: function () {
+                    //  Nothing
+                },
+                NoData: function () {
+
+
+
+                }
+            });
+            $('[name="DataPeriods"][value="' + _StationDataDownload.Base.DataPeriods.T60 + '"]').trigger('click');
+
+            setTimeout(function () {
+                var ddl = $('[name="Parameters"]').data("handler");
+                var oldData = ddl.dataSource.data();
+                var dataLength = oldData.length;
+                var itemsToRemove = []; // Çıkarılacak elemanları tutacak liste
+
+                for (var i = 0; i < dataLength; i++) {
+                    var item = oldData[i];
+                    var isExisting = _StationDataDownload.Params.some(function (param) {
+                        return param.Id === item.Id;
+                    });
+                    if (!isExisting) {
+                        _StationDataDownload.Params.push(item);
+                    }
+                    if (item.Id == "HavaSicakligi" || item.Id == "HavaBasinc" || item.Id == "RuzgarHizi" || item.Id == "RuzgarYonu" || item.Id == "GunesRadyasyon" || item.Id == "Sicaklik" || item.Id == "BagilNem") {
+                        itemsToRemove.push(item); // Elemanı çıkarılacak listeye ekle
+                    }
+                }
+                for (var j = 0; j < itemsToRemove.length; j++) {
+                    ddl.dataSource.remove(itemsToRemove[j]);
+                }
+            }, 2500);
+        })
+        ;
+
+
+    function removeItem(e) {
+        var ddl = $('[name="Parameters"]').data("handler");
+        var oldData = ddl.dataSource.data();
+        if ($(e).prop("checked") == false) {
+            var dataLength = oldData.length;
+            var itemsToRemove = []; // Çıkarılacak elemanları tutacak liste
+
+            for (var i = 0; i < dataLength; i++) {
+                var item = oldData[i];
+                var isExisting = _StationDataDownload.Params.some(function (param) {
+                    return param.Id === item.Id;
+                });
+                if (!isExisting) {
+                    _StationDataDownload.Params.push(item);
+                }
+                if (item.Id == "HavaSicakligi" || item.Id == "HavaBasinc" || item.Id == "RuzgarHizi" || item.Id == "RuzgarYonu" || item.Id == "GunesRadyasyon" || item.Id == "Sicaklik" || item.Id == "BagilNem") {
+                    itemsToRemove.push(item); // Elemanı çıkarılacak listeye ekle
+                }
+            }
+            for (var j = 0; j < itemsToRemove.length; j++) {
+                ddl.dataSource.remove(itemsToRemove[j]);
+            }
+        }
+        else {
+            if (_StationDataDownload.Params.length > 0) {
+                ddl.dataSource.data(_StationDataDownload.Params)
+            }
+        }
+    };
+
+</script>
+
+<script id="template" type="kendo/template">
+    <span>Minimum Tarih: #: min #</span>
+    <span>Min: #: min #</span>
+    <span>Maximum Tarih: #: max #</span>
+    <span>Max: #: max #</span>
+    <span>Ortalama: #: max #</span>
+    <span>Standart Sapma: #: max #</span>
+
+</script>
+
+<form action="/STN/STN_Report/StationDataDownloadNewData"
+      class="form-horizontal"
+      role="form"
+      method="post"
+      id="StationDataDownloadForm"
+      data-formType="Ajax">
+
+    <input name="__RequestVerificationToken" type="hidden" value="_LvVP_inFfKmXgTzjAnsBjI3YjI30vGtriVuGEq_V4i965lcfaJs_yA5J9pRywtARMR7o6X1A56aDGCo19Td3EHksiyECkgIKmfn57d7w5A1" />
+    <input data-val="true" data-val-number="The field StationType must be a number." id="StationDataDownload_StationType" name="StationType" type="hidden" value="1" />
+
+    <fieldset>
+
+        <legend>FİLTRE</legend>
+
+        <div class="row">
+            <div class="col-lg-11 col-md-11">
+                <div class="row" data-management="hide">
+                    <div class="col-lg-3 toggleDiv" id="dropdown12-contentDataDowloadNew">
+
+                        <div class="form-group">
+                            <div class="col-md-12">
+                                <input class="form-control" data-dataidfield="Id" data-datatextfield="Name" data-element="StationGroupId" data-filter="" data-placeholder="İstasyon Grubu Seçiniz..." data-type="multiselect" data-val="true" data-val-number="The field StationGroupId must be a number." id="StationGroupId" name="StationGroupId" type="text" value="" />
+                            </div>
+                        </div>
+
+                        <div class="form-group hide">
+                            <div class="col-md-12">
+                                <input class="form-control" data-dataidfield="Id" data-datatextfield="Name" data-element="SectorId" data-filter="" data-placeholder="Sektör Tipi Seçiniz..." data-type="multiselect" id="Sectors" name="Sectors" type="text" value="" />
+                            </div>
+                        </div>
+
+                    </div>
+                    <div class="col-lg-3 toggleDiv" id="dropdown1-contentDataDowloadNew">
+                        <div class="form-group">
+                            <div class="col-md-12">
+                                <input class="form-control" data-dataidfield="Id" data-datatextfield="Name" data-element="CityId" data-filter="" data-placeholder="Şehir Seçiniz..." data-type="multiselect" id="CityId" name="CityId" type="text" value="" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 toggleDiv" id="dropdown2-contentDataDowloadNew">
+                        <div class="form-group">
+                            <div class="col-md-12">
+
+                                <select class="form-control" data-custom="" data-dataidfield="id" data-datatextfield="Station_Title" data-element="StationIds" data-filter="" data-placeholder="İstasyon Seçiniz..." id="StationIds" multiple="multiple" name="StationIds" required="required"></select>
+
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-2 hide">
+                        <div class="form-group ">
+                            <div class="col-md-12">
+                                <input class="form-control" data-dataidfield="Id" data-datatextfield="Name" data-element="AreaType" data-filter="" data-placeholder="Alan Tipi Seçiniz..." data-type="multiselect" data-val="true" data-val-number="The field AreaType must be a number." id="AreaType" name="AreaType" type="text" value="" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-2 hide">
+                        <div class="form-group ">
+                            <div class="col-md-12">
+                                <input class="form-control" data-dataidfield="Id" data-datatextfield="Name" data-element="SourceType" data-filter="" data-placeholder="Kaynak Tipi Seçiniz..." data-type="multiselect" data-val="true" data-val-number="The field SourceType must be a number." id="SourceType" name="SourceType" type="text" value="" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-2 hide">
+                        <div class="form-group ">
+                            <div class="col-md-12">
+                                <input class="form-control" data-dataidfield="Id" data-datatextfield="Name" data-element="StationCompanyId" data-filter="" data-placeholder="İstasyon Sahibini Seçiniz..." data-type="multiselect" id="StationCompanyId" name="StationCompanyId" type="text" value="" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 toggleDiv" id="dropdown3-contentDataDowloadNew">
+                        <div class="form-group">
+                            <div class="col-md-12">
+
+                                <select class="form-control" data-custom="" data-dataidfield="Id" data-datatextfield="Name" data-element="Parameters" data-placeholder="Ölçüm Parametresi Seçiniz..." data-type="multiselect" id="Parameters" multiple="multiple" name="Parameters" required="required"></select>
+
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4" hidden>
+                        <div class="form-group">
+                            <div class="col-md-12">
+                                <input class="form-control" data-dataidfield="Id" data-datatextfield="Name" data-element="StationSubType" data-filter="" data-placeholder="Tip Seçiniz..." data-type="multiselect" data-val="true" data-val-number="The field StationSubType must be a number." id="StationSubType" name="StationSubType" type="text" value="" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 toggleDiv" id="dropdown4-contentDataDowloadNew" style="height:58px">
+                        <div class="form-group">
+                            <div class="col-md-12 btn-group btn-group-justified" data-toggle="buttons">
+                                <label class="btn btn-danger">
+                                    <input type="radio" name="DataPeriods" value="8" autocomplete="off">
+                                    Saatlik
+                                </label>
+                                <label class="btn btn-danger">
+                                    <input type="radio" name="DataPeriods" value="16" autocomplete="off">
+                                    G&#252;nl&#252;k
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 toggleDiv" style="height:58px" id="skala-contentDataCollection">
+                        <div class="btn-group rounded" role="group">
+                            <button type="button" readonly class="btn">Son:</button>
+                            <button type="button" class="btn button-date" style="border-right: 2px solid #d9baba !important;" data-period="T1440" data-datepicker="StartDateTime" data-enddatepicker="EndDateTime" data-adddate="1">1 Gün</button>
+                            <button type="button" class="btn button-date" style="border-right: 2px solid #d9baba !important;" data-period="T1440" data-datepicker="StartDateTime" data-enddatepicker="EndDateTime" data-adddate="7">1 Hafta</button>
+                            <button type="button" class="btn button-date" style="border-right: 2px solid #d9baba !important;" data-period="T1440" data-datepicker="StartDateTime" data-enddatepicker="EndDateTime" data-adddate="14">2 Hafta</button>
+                            <button type="button" class="btn button-date" style="border-right: 2px solid #d9baba !important;" data-period="T43200" data-datepicker="StartDateTime" data-enddatepicker="EndDateTime" data-adddate="1">1 Ay</button>
+                            <button type="button" class="btn button-date" style="border-right: 2px solid #d9baba !important;" data-period="T43200" data-datepicker="StartDateTime" data-enddatepicker="EndDateTime" data-adddate="3">3 Ay</button>
+                            <button type="button" class="btn button-date" style="border-right: 2px solid #d9baba !important;" data-period="T43200" data-datepicker="StartDateTime" data-enddatepicker="EndDateTime" data-adddate="6">6 Ay</button>
+                            <button type="button" class="btn button-date" data-period="T525960" data-datepicker="StartDateTime" data-enddatepicker="EndDateTime" data-adddate="1">1 Yıl</button>
+                        </div>
+                    </div>
+                    <div class="col-lg-2 toggleDiv" id="dropdown5-contentDataDowloadNew">
+                        <div class="form-group">
+                            <div class="col-md-12">
+                                <input class="form-control" data-cascadefrom="StationDataDownload_EndDateTime" data-cascadetype="max" data-element="StartDateTime" data-picker="StartDateTime" data-required-error="Lütfen Bu Alanı Doldurun..." data-val="true" data-val-date="The field StartDateTime must be a date." id="StationDataDownload_StartDateTime" name="StartDateTime" placeholder="Başlangıç Tarihi Giriniz." required="True" type="text" value="13.02.2026 20:00" /><script>
+	jQuery(function(){jQuery("#StationDataDownload_StartDateTime").kendoDateTimePicker({"format":"dd.MM.yyyy HH:mm","parseFormats":["dd.MM.yyyy HH:mm","dd/MM/yyyy HH:mm"],"min":new Date(1900,0,1,0,0,0,0),"max":new Date(2026,2,15,20,23,9,647),"interval":60});});
+</script>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-2 toggleDiv" id="dropdown6-contentDataDowloadNew">
+                        <div class="form-group">
+                            <div class="col-md-12">
+                                <input class="form-control" data-cascadefrom="StationDataDownload_StartDateTime" data-cascadetype="min" data-element="EndDateTime" data-picker="EndDateTime" data-required-error="Lütfen Bu Alanı Doldurun..." data-val="true" data-val-date="The field EndDateTime must be a date." id="StationDataDownload_EndDateTime" name="EndDateTime" placeholder="Bitiş Tarihi Giriniz." required="True" type="text" value="15.03.2026 20:00" /><script>
+	jQuery(function(){jQuery("#StationDataDownload_EndDateTime").kendoDateTimePicker({"format":"dd.MM.yyyy HH:mm","parseFormats":["dd.MM.yyyy HH:mm","dd/MM/yyyy HH:mm"],"min":new Date(1900,0,1,0,0,0,0),"max":new Date(2026,2,16,20,23,9,647),"interval":60});});
+</script>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-1 col-md-1">
+                <div class="row">
+                    <div class="col-lg-12">
+                        <div class="form-group">
+                            <div class="col-lg-12">
+                                <button class="btn btn-xs btn-block btn-success" style="line-height: 40px;" type="submit">
+                                    Sorgula
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row" data-management="hide">
+                    <div class="col-lg-12">
+                        <div class="form-group">
+                            <div class="col-lg-12">
+                                <button class="btn btn-block btn-xs btn-primary disabled" style="line-height: 40px;" data-type="ResetForm">Temizle</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+
+        <div class="clearfix"></div>
+
+        <div class="fixedStart">
+            <input type="checkbox" id="fixed">
+            <label title="" for="fixed" id="fixed"><i class="icon-filter"> </i></label>
+
+            <div class="fix-buttons" style="visibility:hidden;">
+                <div class="widget-content-area" style="border-top-left-radius: 6px; border-top-right-radius: 6px; border-style: solid; border-color: #ceced2; border-width: thin; background-color: #FFFFFF">
+                    <h4 style="padding:15px 20px !important; font-weight:bold">Filtre Ayarları</h4>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="form-horizontal">
+                                <div class="row" style="" id="fixedRow">
+                                    <div class="form-group col-md-12" style="margin: 0 0 15px 0;" hidden>
+                                        <label class="col-md-8" style="float:none">Meteoroloji Parametrelerini Aç/Kapat</label>
+                                        <div style="float: right; margin-right: 15%;">
+                                            <input class="col-md-4" type="checkbox" id="metParam" onchange="removeItem(this)" data-toggle="toggle" data-size="medium" data-on="Aktif" data-off="Pasif" data-onstyle="success" data-offstyle="danger">
+                                        </div>
+                                    </div>
+                                    <div class="form-group col-md-12" style="margin: 0 0 15px 0;">
+                                        <label class="col-md-8" style="float:none">İstasyon Grubu Filtresini Aç/Kapat</label>
+                                        <div style="float: right; margin-right: 15%;">
+                                            <input class="col-md-4" type="checkbox" onchange="setVisibility(this)" data-toggle="toggle" id="dropdown12-DataDowloadNew" data-id="dropdown12-contentDataDowloadNew" data-size="medium" data-on="Aktif" data-off="Pasif" data-onstyle="success" data-offstyle="danger">
+                                        </div>
+                                    </div>
+                                    <div class="form-group col-md-12" style="margin: 0 0 15px 0;">
+                                        <label class="col-md-8" style="float:none">Şehir Filtresini Aç/Kapat</label>
+                                        <div style="float: right; margin-right: 15%;">
+                                            <input class="col-md-4" type="checkbox" onchange="setVisibility(this)" data-toggle="toggle" id="dropdown1-DataDowloadNew" data-id="dropdown1-contentDataDowloadNew" data-size="medium" data-on="Aktif" data-off="Pasif" data-onstyle="success" data-offstyle="danger">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group col-md-12" style="margin: 0 0 15px 0;">
+                                        <label class="col-md-8" style="float:none">İstasyon Filtresini Aç/Kapat</label>
+                                        <div style="float: right; margin-right: 15%;">
+                                            <input class="col-md-4" type="checkbox" onchange="setVisibility(this)" data-toggle="toggle" id="dropdown2-DataDowloadNew" data-id="dropdown2-contentDataDowloadNew" data-size="medium" data-on="Aktif" data-off="Pasif" data-onstyle="success" data-offstyle="danger">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group col-md-12" style="margin: 0 0 15px 0;">
+                                        <label class="col-md-8" style="float:none">Parametre Filtresini Aç/Kapat</label>
+                                        <div style="float: right; margin-right: 15%;">
+                                            <input class="col-md-4" type="checkbox" onchange="setVisibility(this)" data-toggle="toggle" id="dropdown3-DataDowloadNew" data-id="dropdown3-contentDataDowloadNew" data-size="medium" data-on="Aktif" data-off="Pasif" data-onstyle="success" data-offstyle="danger">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group col-md-12" style="margin: 0 0 15px 0;">
+                                        <label class="col-md-8" style="float:none">Periyot Filtresini Aç/Kapat</label>
+                                        <div style="float: right; margin-right: 15%;">
+                                            <input class="col-md-4" type="checkbox" onchange="setVisibility(this)" data-toggle="toggle" id="dropdown4-DataDowloadNew" data-id="dropdown4-contentDataDowloadNew" data-size="medium" data-on="Aktif" data-off="Pasif" data-onstyle="success" data-offstyle="danger">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group col-md-12" style="margin: 0 0 15px 0;">
+                                        <label class="col-md-8" style="float:none">Tarih Skala Filtresini Aç/Kapat</label>
+                                        <div style="float: right; margin-right: 15%;">
+                                            <input class="col-md-4" type="checkbox" onchange="setVisibility(this)" data-toggle="toggle" id="skala-checkboxDataCollection" data-id="skala-contentDataCollection" data-size="medium" data-on="Aktif" data-off="Pasif" data-onstyle="success" data-offstyle="danger">
+                                        </div>
+                                    </div>
+
+
+                                    <div class="form-group col-md-12" style="margin: 0 0 15px 0;">
+                                        <label class="col-md-8" style="float:none">Başlangıç Tarihi Filtresini Aç/Kapat</label>
+                                        <div style="float: right; margin-right: 15%;">
+                                            <input class="col-md-4" type="checkbox" onchange="setVisibility(this)" data-toggle="toggle" id="dropdown5-DataDowloadNew" data-id="dropdown5-contentDataDowloadNew" data-size="medium" data-on="Aktif" data-off="Pasif" data-onstyle="success" data-offstyle="danger">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group col-md-12" style="margin: 0 0 15px 0;">
+                                        <label class="col-md-8" style="float:none">Bitiş Tarihi Filtresini Aç/Kapat</label>
+                                        <div style="float: right; margin-right: 15%;">
+                                            <input class="col-md-4" type="checkbox" onchange="setVisibility(this)" data-toggle="toggle" id="dropdown6-DataDowloadNew" data-id="dropdown6-contentDataDowloadNew" data-size="medium" data-on="Aktif" data-off="Pasif" data-onstyle="success" data-offstyle="danger">
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="clearfix"></div>
+
+    </fieldset>
+
+    <fieldset data-element="Information">
+        <legend>ÖN İZLEME</legend>
+        <div>
+            <div class="alert alert-warning text-center m-b-none">
+                <strong>Bilgilendirme!</strong> Yukarıdan seçilen tarih ve parametrelere göre veriler yüklenecektir.
+            </div>
+        </div>
+    </fieldset>
+
+    <fieldset data-element="DetailGrid" style="display: none;">
+        <legend>DETAYLI ÖLÇÜM DEĞERLERİ</legend>
+        <div data-element="Target"></div>
+    </fieldset>
+
+    <fieldset data-element="SummaryGrid" style="display: none;">
+        <legend>ÖZET BİLGİ</legend>
+        <div data-element="Target"></div>
+    </fieldset>
+
+</form>
+            </div>
+
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        $('.k-grid-content[style*="height:380px"]').height($(window).height() - 450);
+    </script>
+
+
+    
+    <button id="myBtn" data-scroll="top" title="Yukarı Çık"><i class="fa fa-chevron-up"></i></button>
+
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-128697641-1"></script>
+    <script type="text/javascript">
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+
+        gtag('config', 'UA-128697641-1');
+    </script>
+
+</body>
+</html>
