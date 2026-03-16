@@ -35,6 +35,7 @@ export const STATION_SOURCE_SCOPES: Array<{
 ]
 
 export const LAYER_LABELS: Record<LayerKey, string> = {
+  pollutionSurface: 'Kirlilik bulutu',
   stations: 'İstasyonlar',
   roads: 'Yollar',
   industries: 'Sanayi/fabrika',
@@ -62,6 +63,7 @@ export const DEFAULT_FILTERS: FilterState = {
   startDate: '',
   endDate: '',
   activeLayers: {
+    pollutionSurface: true,
     stations: true,
     roads: false,
     industries: false,

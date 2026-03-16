@@ -18,6 +18,7 @@ export type CompareMode =
   | 'same-month-years'
 
 export type LayerKey =
+  | 'pollutionSurface'
   | 'stations'
   | 'roads'
   | 'industries'

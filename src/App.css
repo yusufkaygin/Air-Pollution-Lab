@@ -769,6 +769,59 @@ select {
     radial-gradient(circle at top right, rgba(103, 116, 145, 0.16), transparent 28%);
 }
 
+.pollution-svg-overlay {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.pollution-overlay-group {
+  opacity: 0.74;
+}
+
+.pollution-plume-group {
+  isolation: isolate;
+}
+
+.pollution-plume-path {
+  pointer-events: none;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: plumeDrift var(--plume-duration) ease-in-out infinite alternate;
+  animation-delay: var(--plume-delay);
+  will-change: transform, opacity;
+}
+
+.pollution-plume-path.ambient {
+  opacity: 0.72;
+}
+
+.pollution-plume-path.body {
+  opacity: 0.78;
+}
+
+.pollution-plume-path.core {
+  opacity: 0.84;
+}
+
+.scientific-map-shell.elevation-focus .pollution-plume-path {
+  opacity: 0.9;
+}
+
+@keyframes plumeDrift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+
+  50% {
+    transform:
+      translate(var(--plume-drift-x), var(--plume-drift-y))
+      scale(var(--plume-scale))
+      rotate(var(--plume-rotation));
+  }
+}
+
 .leaflet-map,
 .leaflet-container {
   height: 580px;
@@ -890,6 +943,11 @@ select {
   font-weight: 700;
 }
 
+.legend-title,
+.legend-block-plume {
+  display: none;
+}
+
 .legend-block {
   display: flex;
   flex-direction: column;
@@ -917,6 +975,21 @@ select {
   width: 12px;
   height: 12px;
   border-radius: 999px;
+}
+
+.legend-plume {
+  display: inline-block;
+  width: 26px;
+  height: 14px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 24% 40%, rgba(109, 187, 168, 0.95), transparent 42%),
+    radial-gradient(circle at 58% 50%, rgba(212, 122, 70, 0.88), transparent 46%),
+    radial-gradient(circle at 74% 52%, rgba(146, 47, 48, 0.8), transparent 44%),
+    rgba(246, 241, 232, 0.72);
+  box-shadow:
+    inset 0 0 0 1px rgba(31, 41, 55, 0.08),
+    0 4px 12px rgba(20, 33, 61, 0.12);
 }
 
 .legend-marker,

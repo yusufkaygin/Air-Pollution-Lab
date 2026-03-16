@@ -1,4 +1,5 @@
 import clsx from 'clsx'
+import { useEffect, useRef, useState } from 'react'
 
 import {
   BUFFER_OPTIONS,
@@ -20,6 +21,13 @@ interface ControlPanelProps {
   onEventSelect: (eventId: string) => void
 }
 
+interface DraftDateInputProps {
+  value: string
+  min: string
+  max: string
+  onCommit: (value: string) => void
+}
+
 function formatEventRange(event: EventCatalogItem) {
   const formatter = new Intl.DateTimeFormat('tr-TR', {
     day: '2-digit',
@@ -29,6 +37,59 @@ function formatEventRange(event: EventCatalogItem) {
   const start = formatter.format(new Date(event.startDate))
   const end = formatter.format(new Date(event.endDate))
   return start === end ? start : `${start} - ${end}`
+}
+
+function DraftDateInput({ value, min, max, onCommit }: DraftDateInputProps) {
+  const [draftValue, setDraftValue] = useState(value)
+  const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function clearCommitTimer() {
+    if (commitTimerRef.current) {
+      clearTimeout(commitTimerRef.current)
+      commitTimerRef.current = null
+    }
+  }
+
+  function commit() {
+    clearCommitTimer()
+
+    if (draftValue !== value) {
+      onCommit(draftValue)
+    }
+  }
+
+  function queueCommit(nextValue: string) {
+    clearCommitTimer()
+    commitTimerRef.current = setTimeout(() => {
+      commitTimerRef.current = null
+
+      if (nextValue !== value) {
+        onCommit(nextValue)
+      }
+    }, 320)
+  }
+
+  useEffect(() => clearCommitTimer, [])
+
+  return (
+    <input
+      type="date"
+      min={min}
+      max={max}
+      value={draftValue}
+      onChange={(event) => {
+        const nextValue = event.target.value
+        setDraftValue(nextValue)
+        queueCommit(nextValue)
+      }}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          commit()
+        }
+      }}
+    />
+  )
 }
 
 export function ControlPanel({
@@ -114,22 +175,22 @@ export function ControlPanel({
         <div className="date-grid">
           <label className="date-field">
             <small>Başlangıç</small>
-            <input
-              type="date"
+            <DraftDateInput
+              key={`start-${filters.startDate}-${filters.endDate}`}
+              value={filters.startDate}
               min={coverageStart}
               max={filters.endDate || coverageEnd}
-              value={filters.startDate}
-              onChange={(event) => onChange('startDate', event.target.value)}
+              onCommit={(value) => onChange('startDate', value)}
             />
           </label>
           <label className="date-field">
             <small>Bitiş</small>
-            <input
-              type="date"
+            <DraftDateInput
+              key={`end-${filters.startDate}-${filters.endDate}`}
+              value={filters.endDate}
               min={filters.startDate || coverageStart}
               max={coverageEnd}
-              value={filters.endDate}
-              onChange={(event) => onChange('endDate', event.target.value)}
+              onCommit={(value) => onChange('endDate', value)}
             />
           </label>
         </div>

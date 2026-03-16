@@ -1,6 +1,7 @@
 import { contours as d3Contours } from 'd3-contour'
 import type { Feature, FeatureCollection, Geometry, Position } from 'geojson'
 import { divIcon } from 'leaflet'
+import type { CSSProperties } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import {
   Circle,
@@ -10,6 +11,7 @@ import {
   Pane,
   Polygon,
   Polyline,
+  SVGOverlay,
   TileLayer,
   Tooltip,
 } from 'react-leaflet'
@@ -23,6 +25,10 @@ import type {
   Station,
 } from '../types'
 import { formatNumber } from '../utils/format'
+import {
+  buildPollutionPlumes,
+  POLLUTION_OVERLAY_VIEWBOX,
+} from '../utils/mapPlumes'
 
 interface MapPanelProps {
   dataset: BursaDataset
@@ -50,6 +56,15 @@ interface ElevationFeatureProperties {
 interface ElevationSurface {
   fills: FeatureCollection<Geometry, ElevationFeatureProperties>
   contours: FeatureCollection<Geometry, ElevationFeatureProperties>
+}
+
+type PlumeLayerStyle = CSSProperties & {
+  '--plume-duration': string
+  '--plume-delay': string
+  '--plume-drift-x': string
+  '--plume-drift-y': string
+  '--plume-scale': string
+  '--plume-rotation': string
 }
 
 const ELEVATION_LEGEND_BANDS = [
@@ -437,6 +452,16 @@ export function MapPanel({
     () => buildElevationSurface(dataset.elevationGrid),
     [dataset.elevationGrid],
   )
+  const pollutionPlumes = useMemo(
+    () =>
+      buildPollutionPlumes(
+        visibleStations,
+        snapshotByStationId,
+        filters.pollutant,
+        BURSA_FOCUS_BOUNDS,
+      ),
+    [filters.pollutant, snapshotByStationId, visibleStations],
+  )
   const emphasizeTerrain = filters.activeLayers.elevation
   const terrainBaseUrl = emphasizeTerrain
     ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base/MapServer/tile/{z}/{y}/{x}'
@@ -641,6 +666,89 @@ export function MapPanel({
             </Pane>
           )}
 
+          {filters.activeLayers.pollutionSurface && !!pollutionPlumes.length && (
+            <Pane name="pollution-plumes" style={{ zIndex: 362, pointerEvents: 'none' }}>
+              <SVGOverlay
+                bounds={BURSA_FOCUS_BOUNDS}
+                attributes={{
+                  className: 'pollution-svg-overlay',
+                  preserveAspectRatio: 'none',
+                  viewBox: POLLUTION_OVERLAY_VIEWBOX,
+                }}
+              >
+                <defs>
+                  <filter
+                    id="pollution-cloud-filter"
+                    x="-28%"
+                    y="-28%"
+                    width="156%"
+                    height="156%"
+                    colorInterpolationFilters="sRGB"
+                  >
+                    <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blurred" />
+                    <feTurbulence
+                      type="fractalNoise"
+                      baseFrequency="0.012 0.018"
+                      numOctaves="2"
+                      seed="17"
+                      result="noise"
+                    >
+                      <animate
+                        attributeName="baseFrequency"
+                        dur="20s"
+                        values="0.012 0.018;0.016 0.025;0.012 0.018"
+                        repeatCount="indefinite"
+                      />
+                    </feTurbulence>
+                    <feDisplacementMap
+                      in="blurred"
+                      in2="noise"
+                      scale="17"
+                      xChannelSelector="R"
+                      yChannelSelector="G"
+                      result="displaced"
+                    />
+                    <feGaussianBlur in="displaced" stdDeviation="7" result="softened" />
+                    <feMerge>
+                      <feMergeNode in="softened" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+
+                <g className="pollution-overlay-group">
+                  {pollutionPlumes.map((plume) => (
+                    <g key={plume.id} className="pollution-plume-group">
+                      {plume.layers.map((layer) => {
+                        const layerStyle: PlumeLayerStyle = {
+                          '--plume-duration': `${layer.duration}s`,
+                          '--plume-delay': `${layer.delay}s`,
+                          '--plume-drift-x': `${layer.driftX}px`,
+                          '--plume-drift-y': `${layer.driftY}px`,
+                          '--plume-scale': String(layer.scale),
+                          '--plume-rotation': `${layer.rotation}deg`,
+                          transformOrigin: `${plume.center.x}px ${plume.center.y}px`,
+                        }
+
+                        return (
+                          <path
+                            key={layer.id}
+                            className={`pollution-plume-path ${layer.variant}`}
+                            d={layer.path}
+                            fill={layer.color}
+                            fillOpacity={layer.opacity}
+                            filter="url(#pollution-cloud-filter)"
+                            style={layerStyle}
+                          />
+                        )
+                      })}
+                    </g>
+                  ))}
+                </g>
+              </SVGOverlay>
+            </Pane>
+          )}
+
           {filters.activeLayers.roads && (
             <Pane name="roads" style={{ zIndex: 380 }}>
               {dataset.roads.map((line) => {
@@ -738,7 +846,7 @@ export function MapPanel({
         </MapContainer>
 
         <div className="map-legend scientific-map-legend">
-          <span className="legend-title">Analitik Lejant</span>
+  
 
           <div className="legend-block">
             <strong>Kirletici yoğunluğu</strong>
@@ -772,15 +880,7 @@ export function MapPanel({
                 <span className="legend-line contour contour-major" />
                 <span>300 m ana izohips</span>
               </div>
-              {ELEVATION_LEGEND_BANDS.map((band) => (
-                <div key={band.label} className="legend-row">
-                  <span
-                    className="legend-dot legend-dot-elevation"
-                    style={{ background: band.color }}
-                  />
-                  <span>{band.label}</span>
-                </div>
-              ))}
+     
             </div>
           )}
 

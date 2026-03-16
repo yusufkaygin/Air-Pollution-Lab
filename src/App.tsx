@@ -1,4 +1,4 @@
-import { addMonths, subMonths } from 'date-fns'
+import { addWeeks, subWeeks } from 'date-fns'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { HiOutlineCog6Tooth } from 'react-icons/hi2'
@@ -22,8 +22,8 @@ function buildEventAnalysisWindow(startDate: string, endDate: string) {
   const eventEnd = new Date(`${endDate.slice(0, 10)}T00:00:00Z`)
 
   return {
-    startDate: toInputDate(subMonths(eventStart, 1)),
-    endDate: toInputDate(addMonths(eventEnd, 1)),
+    startDate: toInputDate(subWeeks(eventStart, 1)),
+    endDate: toInputDate(addWeeks(eventEnd, 2)),
   }
 }
 
@@ -181,6 +181,7 @@ function App() {
           return {
             ...current,
             eventId: '',
+            resolution: current.eventId ? 'month' : current.resolution,
             startDate,
             endDate:
               current.endDate && current.endDate < startDate
@@ -194,6 +195,7 @@ function App() {
           return {
             ...current,
             eventId: '',
+            resolution: current.eventId ? 'month' : current.resolution,
             endDate,
             startDate:
               current.startDate && current.startDate > endDate
@@ -228,6 +230,7 @@ function App() {
         setFilters((current) => ({
           ...current,
           eventId: '',
+          resolution: 'month',
         }))
         return
       }
@@ -238,6 +241,7 @@ function App() {
         setFilters((current) => ({
           ...current,
           eventId: '',
+          resolution: 'month',
         }))
         return
       }
@@ -247,6 +251,7 @@ function App() {
       setFilters((current) => ({
         ...current,
         eventId,
+        resolution: 'day',
         startDate: analysisWindow.startDate,
         endDate: analysisWindow.endDate,
       }))
