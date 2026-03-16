@@ -67,15 +67,6 @@ type PlumeLayerStyle = CSSProperties & {
   '--plume-rotation': string
 }
 
-const ELEVATION_LEGEND_BANDS = [
-  { label: '0-149 m', color: '#d8e7cd' },
-  { label: '150-349 m', color: '#b9d09b' },
-  { label: '350-699 m', color: '#d3b676' },
-  { label: '700-1099 m', color: '#bc9762' },
-  { label: '1100-1499 m', color: '#8f7a66' },
-  { label: '1500 m+', color: '#6d758f' },
-] as const
-
 const ELEVATION_FILL_STOPS = [
   { threshold: 150, color: '#dce8d4', opacity: 0.1 },
   { threshold: 350, color: '#bfd49e', opacity: 0.12 },
