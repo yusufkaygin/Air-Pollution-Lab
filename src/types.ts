@@ -1,6 +1,16 @@
 export type Pollutant = 'PM10' | 'PM2.5' | 'NO2' | 'SO2' | 'O3' | 'CO'
+export type StationSourceScope = 'official' | 'sensor' | 'modeled' | 'all'
+export type StationDataSource = 'official' | 'municipal-sensor' | 'modeled'
 
 export type TimeResolution = 'day' | 'month' | 'season' | 'year'
+
+export type EventType =
+  | 'fire'
+  | 'industrial-fire'
+  | 'dust-transport'
+  | 'wind-event'
+
+export type EventAnalysisMode = 'spatial' | 'temporal'
 
 export type CompareMode =
   | 'month-over-month'
@@ -9,7 +19,6 @@ export type CompareMode =
 
 export type LayerKey =
   | 'stations'
-  | 'fireHotspots'
   | 'roads'
   | 'industries'
   | 'greenAreas'
@@ -61,6 +70,9 @@ export interface Station {
   lng: number
   elevationM: number
   pollutants: Pollutant[]
+  dataSource?: StationDataSource
+  operator?: string
+  sourceId?: string
 }
 
 export interface StationTimeSeriesRecord {
@@ -98,7 +110,8 @@ export interface StationContextMetric {
 
 export interface EventCatalogItem {
   eventId: string
-  eventType: 'fire'
+  eventType: EventType
+  analysisMode?: EventAnalysisMode
   name: string
   startDate: string
   endDate: string
@@ -111,6 +124,7 @@ export interface EventCatalogItem {
   confidence: number
   hotspotCount: number
   note: string
+  referenceUrl?: string
 }
 
 export interface LineFeature {
@@ -152,6 +166,8 @@ export interface BursaDataset {
 export interface FilterState {
   pollutant: Pollutant
   stationId: string
+  stationSourceScope: StationSourceScope
+  eventId: string
   resolution: TimeResolution
   compareMode: CompareMode
   bufferRadius: 250 | 500 | 1000
@@ -179,6 +195,46 @@ export interface MetricCardValue {
   label: string
   value: string
   detail: string
+}
+
+export interface SeasonalTrendSummary {
+  tau: number
+  pValue: number
+  slopePerYear: number
+  direction: 'increasing' | 'decreasing' | 'stable'
+  seasonCount: number
+}
+
+export interface ChangePointSummary {
+  label: string | null
+  score: number
+  direction: 'upward' | 'downward' | 'stable'
+  meanShift: number | null
+}
+
+export interface ExceedanceEpisodeSummary {
+  threshold: number
+  exceedanceDays: number
+  episodeCount: number
+  longestRunDays: number
+  currentRunDays: number
+}
+
+export interface KzDecompositionSummary {
+  backgroundShare: number
+  residualShare: number
+  baselineChange: number
+  residualStd: number
+}
+
+export interface ScientificDiagnosticCard {
+  id: string
+  title: string
+  value: string
+  detail: string
+  helper: string
+  tone: 'accent' | 'warning' | 'cool' | 'neutral'
+  stats: string[]
 }
 
 export interface StationSnapshot {
@@ -220,6 +276,11 @@ export interface AnalysisResult {
   comparisonSeries: TimeSeriesPoint[]
   overviewCards: MetricCardValue[]
   trendSummary: TrendSummary
+  seasonalTrendSummary: SeasonalTrendSummary
+  changePointSummary: ChangePointSummary
+  exceedanceEpisodeSummary: ExceedanceEpisodeSummary
+  kzDecompositionSummary: KzDecompositionSummary
+  scientificDiagnostics: ScientificDiagnosticCard[]
   correlations: CorrelationRow[]
   roseData: RoseBin[]
   event: EventCatalogItem | null

@@ -1,0 +1,338 @@
+[
+  {
+    "DeviceId": "648c79ae5ca4a914f3ddd324",
+    "Name": "MudanyaB-5 - airQuality_mala",
+    "Label": "",
+    "TenantName": "Mudanya Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.382401,
+      "Longitude": 28.872269
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "648c79e65ca4a914f3ddd333",
+    "Name": "MudanyaB-4 - airQuality_maca",
+    "Label": "",
+    "TenantName": "Mudanya Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.354874,
+      "Longitude": 28.928238
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "648c7a405ca4a914f3ddd33f",
+    "Name": "MudanyaB-3 - airQuality_male",
+    "Label": "",
+    "TenantName": "Mudanya Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.362217,
+      "Longitude": 28.906549
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "648c7b135ca4a914f3ddd384",
+    "Name": "MudanyaB-2 - airQuality_sola",
+    "Label": "",
+    "TenantName": "Mudanya Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.37368,
+      "Longitude": 28.888636
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "64904df55ca4a914f3de9162",
+    "Name": "MudanyaB-1 - airQuality_maia",
+    "Label": "",
+    "TenantName": "Mudanya Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.391453,
+      "Longitude": 28.794476
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "63b70e04efae9654696a5511",
+    "Name": "airQuality_novo",
+    "Label": "",
+    "TenantName": "Inegol Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.09410858154297,
+      "Longitude": 29.51218414306641
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "63b70e27efae9654696a5517",
+    "Name": "airQuality_modi",
+    "Label": "",
+    "TenantName": "Inegol Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.079929,
+      "Longitude": 29.509836
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "63b70ea9efae9654696a5525",
+    "Name": "airQuality_vide",
+    "Label": "",
+    "TenantName": "Inegol Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.06778,
+      "Longitude": 29.53305
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "63b70eddefae9654696a552c",
+    "Name": "airQuality_veru",
+    "Label": "",
+    "TenantName": "Inegol Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.0779609,
+      "Longitude": 29.4920237
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "63b710a2efae9654696a557f",
+    "Name": "airQuality_vult",
+    "Label": "",
+    "TenantName": "Inegol Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.11834335327148,
+      "Longitude": 29.45841217041016
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "63b7123cefae9654696a55c7",
+    "Name": "airQuality_fera",
+    "Label": "",
+    "TenantName": "Inegol Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.09031,
+      "Longitude": 29.50873
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "63b7123cefae9654696a55ca",
+    "Name": "airQuality_merx",
+    "Label": "",
+    "TenantName": "Inegol Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.10978317260742,
+      "Longitude": 29.51905632019043
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "63b7123defae9654696a55d1",
+    "Name": "airQuality_lena",
+    "Label": "",
+    "TenantName": "Inegol Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.087696,
+      "Longitude": 29.415358
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "654793f13d377813d3638f1e",
+    "Name": "BursaBB1 - Orhangazi",
+    "Label": "Orhangazi",
+    "TenantName": "Bursa Metropolitan Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.4898333,
+      "Longitude": 29.3087222
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "654793f23d377813d3638f26",
+    "Name": "BursaBB3 - Osmangazi - Demirtaş",
+    "Label": "Osmangazi - Demirtaş",
+    "TenantName": "Bursa Metropolitan Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.2697525,
+      "Longitude": 29.0805054
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "654793f23d377813d3638f2d",
+    "Name": "BursaBB4 - Yıldırım",
+    "Label": "Yıldırım - Vakıf",
+    "TenantName": "Bursa Metropolitan Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.185791,
+      "Longitude": 29.084729
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "654793f33d377813d3638f30",
+    "Name": "BursaBB5 - Gemlik",
+    "Label": "Gemlik",
+    "TenantName": "Bursa Metropolitan Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.4313889,
+      "Longitude": 29.1538887
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "654799053d377813d36390ca",
+    "Name": "BursaBB2 - Kestel Barakfakih",
+    "Label": "Kestel - Barakfakih",
+    "TenantName": "Bursa Metropolitan Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.2102222,
+      "Longitude": 29.2701944
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "66bcc246af59461399ff9a6f",
+    "Name": "BursaBB10 - Balkan",
+    "Label": "Nilüfer",
+    "TenantName": "Bursa Metropolitan Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.207422,
+      "Longitude": 28.813056
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "66f51ffe99b95aefdf962071",
+    "Name": "BursaBB6 - Kent Meydanı",
+    "Label": "Kent Meydanı",
+    "TenantName": "Bursa Metropolitan Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.1956874,
+      "Longitude": 29.0601112
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "66f51ffe99b95aefdf962073",
+    "Name": "BursaBB9 - Kestel",
+    "Label": "Kestel",
+    "TenantName": "Bursa Metropolitan Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.2008286,
+      "Longitude": 29.2124386
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "66f52d9099b95aefdf96281b",
+    "Name": "BursaBB8 - Gürsu",
+    "Label": "Gürsu",
+    "TenantName": "Bursa Metropolitan Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.2183756,
+      "Longitude": 29.1923616
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "66f532f099b95aefdf962afa",
+    "Name": "BursaBB7 - Hanlar Bölgesi",
+    "Label": "Hanlar Bölgesi",
+    "TenantName": "Bursa Metropolitan Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.1841316,
+      "Longitude": 29.059576
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "681dca754a5ac6dc7d321eaa",
+    "Name": "BursaBB15 - Keles",
+    "Label": "Keles",
+    "TenantName": "Bursa Metropolitan Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 39.9129753,
+      "Longitude": 29.2326031
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "68306f556c42e36b9c9e7e9a",
+    "Name": "BursaBB12 - Karacabey",
+    "Label": "Karacabey",
+    "TenantName": "Bursa Metropolitan Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.2160645,
+      "Longitude": 28.3591042
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "683083ba6c42e36b9c9e89f4",
+    "Name": "BursaBB14 - Gemlik Atatepe",
+    "Label": "Gemlik - Atatepe",
+    "TenantName": "Bursa Metropolitan Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.4194722,
+      "Longitude": 29.1398333
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "683091f46c42e36b9c9e9144",
+    "Name": "BursaBB13 - Orhaneli",
+    "Label": "Orhaneli",
+    "TenantName": "Bursa Metropolitan Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 39.9000473,
+      "Longitude": 28.991293
+    },
+    "HasLocation": true
+  },
+  {
+    "DeviceId": "683480356c42e36b9ca08282",
+    "Name": "BursaBB11 - Mustafakemalpaşa",
+    "Label": "Mustafakemalpaşa",
+    "TenantName": "Bursa Metropolitan Municipality",
+    "DeviceSource": "Airqoon",
+    "Location": {
+      "Latitude": 40.037899,
+      "Longitude": 28.408453
+    },
+    "HasLocation": true
+  }
+]

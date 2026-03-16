@@ -4,13 +4,19 @@ import { SCREENING_THRESHOLDS } from '../constants'
 import type {
   AnalysisResult,
   BursaDataset,
+  ChangePointSummary,
   CorrelationRow,
+  ExceedanceEpisodeSummary,
   EventCatalogItem,
   EventImpactStation,
   FilterState,
+  KzDecompositionSummary,
   MeteoTimeSeriesRecord,
   RoseBin,
+  ScientificDiagnosticCard,
+  SeasonalTrendSummary,
   Station,
+  StationSourceScope,
   StationSnapshot,
   StationTimeSeriesRecord,
   TimeResolution,
@@ -20,9 +26,37 @@ import type {
 import { angularDifference, bearingDegrees, haversineDistanceKm } from './geo'
 import { formatNumber, formatSigned } from './format'
 
-const MONTH_NAMES = ['Oca', 'Sub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Agu', 'Eyl', 'Eki', 'Kas', 'Ara']
-const SEASON_NAMES = ['Kis', 'Ilkbahar', 'Yaz', 'Sonbahar'] as const
+const MONTH_NAMES = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
+const SEASON_NAMES = ['Kış', 'İlkbahar', 'Yaz', 'Sonbahar'] as const
 const COMPASS_LABELS = ['K', 'KD', 'D', 'GD', 'G', 'GB', 'B', 'KB']
+const RESOLUTION_LABELS: Record<TimeResolution, string> = {
+  day: 'günlük',
+  month: 'aylık',
+  season: 'mevsimlik',
+  year: 'yıllık',
+}
+
+function stationMatchesScope(station: Station, scope: StationSourceScope) {
+  if (scope === 'all') {
+    return true
+  }
+
+  if (scope === 'official') {
+    return station.dataSource === 'official' || !station.dataSource
+  }
+
+  if (scope === 'sensor') {
+    return station.dataSource === 'municipal-sensor'
+  }
+
+  return station.dataSource === 'modeled'
+}
+
+function scopedStations(dataset: BursaDataset, filters: FilterState) {
+  return dataset.stations.filter((station) =>
+    stationMatchesScope(station, filters.stationSourceScope),
+  )
+}
 
 function mean(values: number[]) {
   if (values.length === 0) {
@@ -43,6 +77,11 @@ function standardDeviation(values: number[]) {
     (values.length - 1)
 
   return Math.sqrt(variance)
+}
+
+function variance(values: number[]) {
+  const sigma = standardDeviation(values)
+  return sigma ** 2
 }
 
 function median(values: number[]) {
@@ -97,6 +136,14 @@ function normalCdf(value: number) {
   const erf = sign * (1 - polynomial * Math.exp(-x * x))
 
   return (1 + erf) / 2
+}
+
+function directionFromSlopeAndPValue(slope: number, pValue: number) {
+  if (pValue >= 0.05 || slope === 0) {
+    return 'stable' as const
+  }
+
+  return slope > 0 ? ('increasing' as const) : ('decreasing' as const)
 }
 
 function parseDate(value: string) {
@@ -227,6 +274,262 @@ function aggregateRecords(
     .sort((left, right) => left.key.localeCompare(right.key))
 }
 
+function pairwiseSlope(
+  left: TimeSeriesPoint,
+  right: TimeSeriesPoint,
+  denominator: number,
+) {
+  if (denominator === 0) {
+    return null
+  }
+
+  return (right.value - left.value) / denominator
+}
+
+function calculateSeasonalTrend(series: TimeSeriesPoint[]): SeasonalTrendSummary {
+  const seasonalBuckets = new Map<number, TimeSeriesPoint[]>()
+
+  series.forEach((point) => {
+    const month = Number(point.key.split('-')[1]) - 1
+    const bucket = seasonalBuckets.get(month) ?? []
+    bucket.push(point)
+    seasonalBuckets.set(month, bucket)
+  })
+
+  let statistic = 0
+  let varianceTotal = 0
+  let pairCount = 0
+  const slopes: number[] = []
+
+  seasonalBuckets.forEach((bucket) => {
+    const sorted = [...bucket].sort((left, right) => left.key.localeCompare(right.key))
+
+    if (sorted.length < 2) {
+      return
+    }
+
+    const n = sorted.length
+    varianceTotal += (n * (n - 1) * (2 * n + 5)) / 18
+    pairCount += (n * (n - 1)) / 2
+
+    for (let leftIndex = 0; leftIndex < sorted.length - 1; leftIndex += 1) {
+      for (
+        let rightIndex = leftIndex + 1;
+        rightIndex < sorted.length;
+        rightIndex += 1
+      ) {
+        const left = sorted[leftIndex]
+        const right = sorted[rightIndex]
+        const leftYear = Number(left.key.split('-')[0])
+        const rightYear = Number(right.key.split('-')[0])
+
+        statistic += Math.sign(right.value - left.value)
+
+        const slope = pairwiseSlope(left, right, rightYear - leftYear)
+        if (slope !== null) {
+          slopes.push(slope)
+        }
+      }
+    }
+  })
+
+  if (pairCount === 0 || varianceTotal === 0) {
+    return {
+      tau: 0,
+      pValue: 1,
+      slopePerYear: 0,
+      direction: 'stable',
+      seasonCount: seasonalBuckets.size,
+    }
+  }
+
+  const z =
+    statistic > 0
+      ? (statistic - 1) / Math.sqrt(varianceTotal)
+      : statistic < 0
+        ? (statistic + 1) / Math.sqrt(varianceTotal)
+        : 0
+  const pValue = 2 * (1 - normalCdf(Math.abs(z)))
+  const tau = statistic / pairCount
+  const slopePerYear = median(slopes)
+
+  return {
+    tau,
+    pValue,
+    slopePerYear,
+    direction: directionFromSlopeAndPValue(slopePerYear, pValue),
+    seasonCount: [...seasonalBuckets.values()].filter((bucket) => bucket.length >= 2).length,
+  }
+}
+
+function calculateChangePoint(series: TimeSeriesPoint[]): ChangePointSummary {
+  if (series.length < 6) {
+    return {
+      label: null,
+      score: 0,
+      direction: 'stable',
+      meanShift: null,
+    }
+  }
+
+  const monthMeans = new Map<number, number[]>()
+
+  series.forEach((point) => {
+    const month = Number(point.key.split('-')[1]) - 1
+    const bucket = monthMeans.get(month) ?? []
+    bucket.push(point.value)
+    monthMeans.set(month, bucket)
+  })
+
+  const residuals = series.map((point) => {
+    const month = Number(point.key.split('-')[1]) - 1
+    const climatology = mean(monthMeans.get(month) ?? [point.value])
+    return point.value - climatology
+  })
+  const sigma = standardDeviation(residuals) || 1
+  let cumulative = 0
+  let maxAbs = 0
+  let breakIndex = -1
+
+  residuals.forEach((residual, index) => {
+    cumulative += residual / sigma
+    const magnitude = Math.abs(cumulative)
+
+    if (magnitude > maxAbs) {
+      maxAbs = magnitude
+      breakIndex = index
+    }
+  })
+
+  if (breakIndex <= 0 || maxAbs < 1) {
+    return {
+      label: null,
+      score: Number(maxAbs.toFixed(2)),
+      direction: 'stable',
+      meanShift: null,
+    }
+  }
+
+  const beforeValues = series.slice(0, breakIndex).map((point) => point.value)
+  const afterValues = series.slice(breakIndex).map((point) => point.value)
+  const meanShift =
+    beforeValues.length > 0 && afterValues.length > 0
+      ? mean(afterValues) - mean(beforeValues)
+      : null
+  const direction =
+    meanShift === null || Math.abs(meanShift) < 0.1
+      ? 'stable'
+      : meanShift > 0
+        ? 'upward'
+        : 'downward'
+
+  return {
+    label: series[breakIndex]?.label ?? null,
+    score: Number(maxAbs.toFixed(2)),
+    direction,
+    meanShift,
+  }
+}
+
+function differenceInCalendarDays(left: string, right: string) {
+  const ms = parseDate(left).getTime() - parseDate(right).getTime()
+  return Math.round(ms / 86_400_000)
+}
+
+function computeExceedanceEpisodes(
+  records: StationTimeSeriesRecord[],
+  pollutant: FilterState['pollutant'],
+): ExceedanceEpisodeSummary {
+  const threshold = SCREENING_THRESHOLDS[pollutant]
+  const dailySeries = aggregateRecords(records, 'day')
+  let exceedanceDays = 0
+  let episodeCount = 0
+  let longestRunDays = 0
+  let currentRunDays = 0
+  let previousExceedanceDate: string | null = null
+
+  dailySeries.forEach((point) => {
+    const exceedance = point.value > threshold
+
+    if (!exceedance) {
+      currentRunDays = 0
+      previousExceedanceDate = null
+      return
+    }
+
+    exceedanceDays += 1
+
+    if (
+      previousExceedanceDate &&
+      differenceInCalendarDays(point.key, previousExceedanceDate) === 1
+    ) {
+      currentRunDays += 1
+    } else {
+      episodeCount += 1
+      currentRunDays = 1
+    }
+
+    previousExceedanceDate = point.key
+    longestRunDays = Math.max(longestRunDays, currentRunDays)
+  })
+
+  return {
+    threshold,
+    exceedanceDays,
+    episodeCount,
+    longestRunDays,
+    currentRunDays,
+  }
+}
+
+function movingAverage(values: number[], windowSize: number) {
+  const halfWindow = Math.floor(windowSize / 2)
+
+  return values.map((_, index) => {
+    const slice = values.slice(
+      Math.max(0, index - halfWindow),
+      Math.min(values.length, index + halfWindow + 1),
+    )
+
+    return mean(slice)
+  })
+}
+
+function kzFilter(values: number[], windowSize: number, iterations: number) {
+  let filtered = [...values]
+
+  for (let iteration = 0; iteration < iterations; iteration += 1) {
+    filtered = movingAverage(filtered, windowSize)
+  }
+
+  return filtered
+}
+
+function computeKzDecomposition(series: TimeSeriesPoint[]): KzDecompositionSummary {
+  if (series.length < 5) {
+    return {
+      backgroundShare: 0,
+      residualShare: 0,
+      baselineChange: 0,
+      residualStd: 0,
+    }
+  }
+
+  const values = series.map((point) => point.value)
+  const baseline = kzFilter(values, 5, 2)
+  const residuals = values.map((value, index) => value - baseline[index])
+  const totalVariance = variance(values) || 1
+  const backgroundShare = Math.min(1, Math.max(0, variance(baseline) / totalVariance))
+  const residualShare = Math.min(1, Math.max(0, variance(residuals) / totalVariance))
+
+  return {
+    backgroundShare,
+    residualShare,
+    baselineChange: baseline.at(-1)! - baseline[0]!,
+    residualStd: standardDeviation(residuals),
+  }
+}
+
 function calculateTrend(series: TimeSeriesPoint[]): TrendSummary {
   const values = series.map((point) => point.value)
 
@@ -276,10 +579,13 @@ function calculateTrend(series: TimeSeriesPoint[]): TrendSummary {
   return { tau, pValue, slope, direction }
 }
 
-function computeMonthlyZScores(series: TimeSeriesPoint[]) {
+function computeMonthlyZScores(
+  series: TimeSeriesPoint[],
+  climatologySeries: TimeSeriesPoint[] = series,
+) {
   const grouped = new Map<number, number[]>()
 
-  series.forEach((point) => {
+  climatologySeries.forEach((point) => {
     const month = new Date(`${point.key}-01T00:00:00Z`).getUTCMonth()
     const values = grouped.get(month) ?? []
     values.push(point.value)
@@ -315,21 +621,29 @@ function filterStationSeries(
 function computeStationSnapshots(
   dataset: BursaDataset,
   filters: FilterState,
+  stations: Station[],
 ): StationSnapshot[] {
-  return dataset.stations
+  return stations
     .map<StationSnapshot>((station) => {
-      const stationRecords = filterStationSeries(dataset, filters, [station.id]).sort(
+      const selectedStationRecords = filterStationSeries(dataset, filters, [station.id]).sort(
         (left, right) => left.timestamp.localeCompare(right.timestamp),
       )
-      const recent = stationRecords.slice(-16)
-      const monthlySeries = aggregateRecords(stationRecords, 'month')
-      const zScores = computeMonthlyZScores(monthlySeries)
+      const allStationRecords = dataset.stationTimeSeries
+        .filter(
+          (record) =>
+            record.stationId === station.id && record.pollutant === filters.pollutant,
+        )
+        .sort((left, right) => left.timestamp.localeCompare(right.timestamp))
+      const recent = selectedStationRecords.slice(-16)
+      const monthlySeries = aggregateRecords(selectedStationRecords, 'month')
+      const climatologyMonthlySeries = aggregateRecords(allStationRecords, 'month')
+      const zScores = computeMonthlyZScores(monthlySeries, climatologyMonthlySeries)
 
       return {
         stationId: station.id,
         currentValue: mean(recent.map((record) => record.value)),
         anomalyZScore: zScores.at(-1) ?? 0,
-        meanValue: mean(stationRecords.map((record) => record.value)),
+        meanValue: mean(selectedStationRecords.map((record) => record.value)),
       }
     })
     .sort((left, right) => right.currentValue - left.currentValue)
@@ -379,12 +693,13 @@ function buildComparisonSeries(
 function computeCorrelations(
   dataset: BursaDataset,
   filters: FilterState,
+  stations: Station[],
 ): CorrelationRow[] {
   const metrics = dataset.contextMetrics.filter(
     (metric) => metric.radiusM === filters.bufferRadius,
   )
 
-  const stationMeans = dataset.stations
+  const stationMeans = stations
     .map((station) => {
       const values = filterStationSeries(dataset, filters, [station.id]).map(
         (record) => record.value,
@@ -408,13 +723,13 @@ function computeCorrelations(
 
   const pollutantMeans = joined.map((item) => item.stationMean)
   const metricRows: Array<[string, number[]]> = [
-    ['Bina yogunlugu', joined.map((item) => item.metric.buildingDensity)],
-    ['Yol yogunlugu', joined.map((item) => item.metric.roadDensity)],
-    ['Yesil orani', joined.map((item) => item.metric.greenRatio)],
-    ['Gecirimsiz yuzey', joined.map((item) => item.metric.imperviousRatio)],
-    ['Sanayi sayisi', joined.map((item) => item.metric.industryCount)],
-    ['Ortalama yukseklik', joined.map((item) => item.metric.meanElevation)],
-    ['Ortalama egim', joined.map((item) => item.metric.slopeMean)],
+    ['Bina yoğunluğu', joined.map((item) => item.metric.buildingDensity)],
+    ['Yol yoğunluğu', joined.map((item) => item.metric.roadDensity)],
+    ['Yeşil oranı', joined.map((item) => item.metric.greenRatio)],
+    ['Geçirimsiz yüzey', joined.map((item) => item.metric.imperviousRatio)],
+    ['Sanayi sayısı', joined.map((item) => item.metric.industryCount)],
+    ['Ortalama yükseklik', joined.map((item) => item.metric.meanElevation)],
+    ['Ortalama eğim', joined.map((item) => item.metric.slopeMean)],
   ]
 
   return metricRows
@@ -449,11 +764,12 @@ function circularMean(records: MeteoTimeSeriesRecord[]) {
 function computeRoseData(
   dataset: BursaDataset,
   filters: FilterState,
-  fallbackStationId: string | undefined,
+  stationIds: string[],
 ): RoseBin[] {
-  const stationId = filters.stationId === 'all' ? fallbackStationId : filters.stationId
+  const activeStationIds =
+    filters.stationId === 'all' ? stationIds : stationIds.filter((id) => id === filters.stationId)
 
-  if (!stationId) {
+  if (activeStationIds.length === 0) {
     return []
   }
 
@@ -461,16 +777,16 @@ function computeRoseData(
     dataset.meteoTimeSeries
       .filter(
         (record) =>
-          record.stationIdOrGridId === stationId &&
+          activeStationIds.includes(record.stationIdOrGridId) &&
           isRecordInsideDateRange(record.timestamp, filters.startDate, filters.endDate),
       )
-      .map((record) => [record.timestamp, record]),
+      .map((record) => [`${record.stationIdOrGridId}__${record.timestamp}`, record]),
   )
 
   const bins = new Map<string, { pollutant: number[]; wind: number[] }>()
 
-  filterStationSeries(dataset, filters, [stationId]).forEach((record) => {
-    const meteo = meteoByTimestamp.get(record.timestamp)
+  filterStationSeries(dataset, filters, activeStationIds).forEach((record) => {
+    const meteo = meteoByTimestamp.get(`${record.stationId}__${record.timestamp}`)
 
     if (!meteo) {
       return
@@ -529,15 +845,16 @@ function computeEventImpact(
   dataset: BursaDataset,
   filters: FilterState,
   event: EventCatalogItem | null,
+  stations: Station[],
 ): EventImpactStation[] {
-  if (!event) {
+  if (!event || event.analysisMode === 'temporal') {
     return []
   }
 
   const eventStart = parseDate(event.startDate)
   const eventEnd = parseDate(event.endDate)
 
-  return dataset.stations
+  return stations
     .map<EventImpactStation>((station) => {
       const stationRecords = dataset.stationTimeSeries.filter(
         (record) =>
@@ -580,7 +897,7 @@ function computeEventImpact(
         stationName: station.name,
         distanceKm,
         alignmentScore,
-        status: exposed || filters.stationId === station.id ? 'exposed' : 'control',
+        status: exposed ? 'exposed' : 'control',
         beforeMean,
         duringMean,
         afterMean,
@@ -592,6 +909,15 @@ function computeEventImpact(
       }
     })
     .sort((left, right) => {
+      if (filters.stationId !== 'all') {
+        if (left.stationId === filters.stationId && right.stationId !== filters.stationId) {
+          return -1
+        }
+        if (right.stationId === filters.stationId && left.stationId !== filters.stationId) {
+          return 1
+        }
+      }
+
       if (left.status === right.status) {
         return left.distanceKm - right.distanceKm
       }
@@ -604,41 +930,129 @@ function computeEventImpact(
 function buildOverviewCards(
   aggregateSeries: TimeSeriesPoint[],
   monthlySeries: TimeSeriesPoint[],
+  climatologyMonthlySeries: TimeSeriesPoint[],
   rawRecords: StationTimeSeriesRecord[],
   trendSummary: TrendSummary,
   filters: FilterState,
 ) {
-  const zScores = computeMonthlyZScores(monthlySeries)
+  const zScores = computeMonthlyZScores(monthlySeries, climatologyMonthlySeries)
   const anomalyMean = mean(zScores)
   const threshold = SCREENING_THRESHOLDS[filters.pollutant]
-  const screeningExceedances = rawRecords.filter((record) => record.value > threshold).length
+  const screeningExceedances = aggregateRecords(rawRecords, 'day').filter(
+    (point) => point.value > threshold,
+  ).length
   const weekdayWeekendDiff = computeWeekdayWeekendDifference(rawRecords)
 
   return [
     {
       label: 'Ortalama konsantrasyon',
-      value: `${formatNumber(mean(aggregateSeries.map((point) => point.value)))} ug/m3`,
-      detail: `${filters.resolution} cozunurlukte ortalama`,
+      value: `${formatNumber(mean(aggregateSeries.map((point) => point.value)))} µg/m3`,
+      detail: `${RESOLUTION_LABELS[filters.resolution]} çözünürlükte ortalama`,
     },
     {
       label: 'Anomali z-skoru',
       value: formatSigned(anomalyMean, 2),
-      detail: 'Ayni aylarin tarihsel ortalamasina gore',
+      detail: 'Aynı ayların tarihsel ortalamasına göre',
     },
     {
-      label: 'Esik asimi',
+      label: 'Eşik aşımı',
       value: `${screeningExceedances}`,
-      detail: `Gunluk esik > ${threshold}`,
+      detail: `Günlük eşik > ${threshold}`,
     },
     {
-      label: 'Hafta ici - hafta sonu',
+      label: 'Hafta içi - hafta sonu',
       value: formatSigned(weekdayWeekendDiff),
-      detail: 'Pozitif ise hafta ici daha yuksek',
+      detail: 'Pozitif ise hafta içi daha yüksek',
     },
     {
       label: 'Trend',
       value: formatSigned(trendSummary.slope, 2),
       detail: `Mann-Kendall tau=${formatNumber(trendSummary.tau, 2)}, p=${formatNumber(trendSummary.pValue, 3)}`,
+    },
+  ]
+}
+
+function buildScientificDiagnostics(
+  seasonalTrendSummary: SeasonalTrendSummary,
+  changePointSummary: ChangePointSummary,
+  exceedanceEpisodeSummary: ExceedanceEpisodeSummary,
+  kzDecompositionSummary: KzDecompositionSummary,
+): ScientificDiagnosticCard[] {
+  const changeDirectionLabel =
+    changePointSummary.direction === 'upward'
+      ? 'Yukarı kırılma'
+      : changePointSummary.direction === 'downward'
+        ? 'Aşağı kırılma'
+        : 'Belirgin kırılma yok'
+
+  return [
+    {
+      id: 'seasonal-kendall',
+      title: 'Seasonal Kendall',
+      value:
+        seasonalTrendSummary.direction === 'stable'
+          ? 'Yatay eğilim'
+          : `${formatSigned(seasonalTrendSummary.slopePerYear, 2)} µg/m3/yıl`,
+      detail:
+        seasonalTrendSummary.direction === 'stable'
+          ? 'Mevsimsellik etkisi altında anlamlı yön bulunmadı.'
+          : `Mevsim etkisi ayrıldığında seri ${seasonalTrendSummary.direction === 'increasing' ? 'artış' : 'azalış'} yönünde.`,
+      helper:
+        'Aynı ayları kendi geçmişleriyle karşılaştırarak mevsim döngüsünü baskılar ve uzun dönem trendi daha sağlam sınar.',
+      tone:
+        seasonalTrendSummary.direction === 'increasing'
+          ? 'warning'
+          : seasonalTrendSummary.direction === 'decreasing'
+            ? 'cool'
+            : 'neutral',
+      stats: [
+        `τs ${formatNumber(seasonalTrendSummary.tau, 2)}`,
+        `p ${formatNumber(seasonalTrendSummary.pValue, 3)}`,
+      ],
+    },
+    {
+      id: 'cusum-break',
+      title: 'CUSUM kırılması',
+      value: changePointSummary.label ?? 'Kırılma yok',
+      detail:
+        changePointSummary.label && changePointSummary.meanShift !== null
+          ? `${changeDirectionLabel}; ortalama kayma ${formatSigned(changePointSummary.meanShift, 1)} µg/m3.`
+          : 'Seçili dönemde ortalamada belirgin bir yapısal kayma saptanmadı.',
+      helper:
+        'Kümülatif sapma serisi, ani rejim değişimleri veya olay sonrası seviyedeki kalıcı kaymaları görünür hale getirir.',
+      tone:
+        changePointSummary.direction === 'upward'
+          ? 'warning'
+          : changePointSummary.direction === 'downward'
+            ? 'cool'
+            : 'neutral',
+      stats: [`Skor ${formatNumber(changePointSummary.score, 2)}σ`],
+    },
+    {
+      id: 'exceedance-episodes',
+      title: 'Aşım epizotları',
+      value: `${exceedanceEpisodeSummary.episodeCount} epizot`,
+      detail:
+        exceedanceEpisodeSummary.exceedanceDays > 0
+          ? `Eşik üstü toplam ${exceedanceEpisodeSummary.exceedanceDays} gün; en uzun seri ${exceedanceEpisodeSummary.longestRunDays} gün.`
+          : 'Seçili dönemde tarama eşiğini aşan gün bulunmadı.',
+      helper:
+        'Tekil piklerden farklı olarak, ardışık aşım günlerini yakalar ve kalıcı kirlilik ataklarını ayrı bir olay olarak sayar.',
+      tone: exceedanceEpisodeSummary.longestRunDays >= 3 ? 'warning' : 'accent',
+      stats: [
+        `Eşik ${formatNumber(exceedanceEpisodeSummary.threshold, 0)} µg/m3`,
+        `Güncel seri ${exceedanceEpisodeSummary.currentRunDays} gün`,
+      ],
+    },
+    {
+      id: 'kz-decomposition',
+      title: 'KZ ayrıştırma',
+      value: `%${Math.round(kzDecompositionSummary.backgroundShare * 100)} arka plan`,
+      detail: `Kısa dönem oynaklık payı %${Math.round(kzDecompositionSummary.residualShare * 100)}; arka plan değişimi ${formatSigned(kzDecompositionSummary.baselineChange, 1)} µg/m3.`,
+      helper:
+        'Kolmogorov-Zurbenko filtresi, uzun dönem arka planı ile kısa dönem olay/meteoroloji sinyalini ayırarak bozulmanın kaynağını daha okunur yapar.',
+      tone: kzDecompositionSummary.residualShare >= 0.45 ? 'accent' : 'cool',
+      stats: [`Artık std ${formatNumber(kzDecompositionSummary.residualStd, 1)} µg/m3`],
     },
   ]
 }
@@ -656,6 +1070,10 @@ function buildContextSelection(
 }
 
 function pickEvent(dataset: BursaDataset, filters: FilterState) {
+  if (filters.eventId) {
+    return dataset.events.find((event) => event.eventId === filters.eventId) ?? null
+  }
+
   const overlappingEvents = dataset.events.filter((event) =>
     doesEventOverlapRange(event, filters.startDate, filters.endDate),
   )
@@ -675,27 +1093,47 @@ export function analyzeDataset(
   dataset: BursaDataset,
   filters: FilterState,
 ): AnalysisResult {
+  const availableStations = scopedStations(dataset, filters)
   const selectedStations =
     filters.stationId === 'all'
-      ? dataset.stations
-      : dataset.stations.filter((station) => station.id === filters.stationId)
+      ? availableStations
+      : availableStations.filter((station) => station.id === filters.stationId)
   const rawRecords = filterStationSeries(
     dataset,
     filters,
     selectedStations.map((station) => station.id),
   )
+  const climatologyRecords = dataset.stationTimeSeries.filter(
+    (record) =>
+      record.pollutant === filters.pollutant &&
+      selectedStations.some((station) => station.id === record.stationId),
+  )
   const aggregateSeries = aggregateRecords(rawRecords, filters.resolution)
   const monthlySeries = aggregateRecords(rawRecords, 'month')
+  const climatologyMonthlySeries = aggregateRecords(climatologyRecords, 'month')
   const trendSummary = calculateTrend(monthlySeries)
+  const seasonalTrendSummary = calculateSeasonalTrend(monthlySeries)
+  const changePointSummary = calculateChangePoint(monthlySeries)
+  const exceedanceEpisodeSummary = computeExceedanceEpisodes(
+    rawRecords,
+    filters.pollutant,
+  )
+  const kzDecompositionSummary = computeKzDecomposition(monthlySeries)
   const selectedContextMetrics = buildContextSelection(
     dataset,
     selectedStations,
     filters.bufferRadius,
   )
   const event = pickEvent(dataset, filters)
+  const scientificDiagnostics = buildScientificDiagnostics(
+    seasonalTrendSummary,
+    changePointSummary,
+    exceedanceEpisodeSummary,
+    kzDecompositionSummary,
+  )
 
   return {
-    stationSnapshots: computeStationSnapshots(dataset, filters),
+    stationSnapshots: computeStationSnapshots(dataset, filters, availableStations),
     selectedStations,
     selectedContextMetrics,
     aggregateSeries,
@@ -703,25 +1141,35 @@ export function analyzeDataset(
     overviewCards: buildOverviewCards(
       aggregateSeries,
       monthlySeries,
+      climatologyMonthlySeries,
       rawRecords,
       trendSummary,
       filters,
     ),
     trendSummary,
-    correlations: computeCorrelations(dataset, filters),
-    roseData: computeRoseData(dataset, filters, selectedStations[0]?.id),
+    seasonalTrendSummary,
+    changePointSummary,
+    exceedanceEpisodeSummary,
+    kzDecompositionSummary,
+    scientificDiagnostics,
+    correlations: computeCorrelations(dataset, filters, availableStations),
+    roseData: computeRoseData(
+      dataset,
+      filters,
+      selectedStations.map((station) => station.id),
+    ),
     event,
-    eventImpactRows: computeEventImpact(dataset, filters, event),
+    eventImpactRows: computeEventImpact(dataset, filters, event, availableStations),
     exportRows: aggregateSeries.map((point) => ({
       bucket: point.label,
       key: point.key,
       value: Number(point.value.toFixed(3)),
       count: point.count,
       pollutant: filters.pollutant,
-      resolution: filters.resolution,
+      resolution: RESOLUTION_LABELS[filters.resolution],
       station_selection:
         filters.stationId === 'all'
-          ? 'Bursa coklu istasyon ortalamasi'
+          ? 'Bursa çoklu istasyon ortalaması'
           : selectedStations[0]?.name ?? filters.stationId,
       start_date: filters.startDate || dataset.metadata.coverageStart,
       end_date: filters.endDate || dataset.metadata.coverageEnd,

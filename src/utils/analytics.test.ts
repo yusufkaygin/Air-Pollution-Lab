@@ -91,6 +91,8 @@ describe('analyzeDataset', () => {
     expect(result.aggregateSeries).toHaveLength(3)
     expect(result.aggregateSeries[0].value).toBeCloseTo(27.5)
     expect(result.overviewCards).toHaveLength(5)
+    expect(result.overviewCards[2]?.value).toBe('1')
+    expect(result.scientificDiagnostics).toHaveLength(4)
     expect(result.correlations[0]).toBeDefined()
   })
 
@@ -108,5 +110,57 @@ describe('analyzeDataset', () => {
     expect(result.event?.eventId).toBe('fire-test')
     expect(result.eventImpactRows.length).toBeGreaterThan(0)
     expect(result.eventImpactRows.some((row) => row.status === 'exposed')).toBe(true)
+  })
+
+  it('returns Turkish seasonal labels and overview details', () => {
+    const result = analyzeDataset(testDataset, {
+      ...DEFAULT_FILTERS,
+      pollutant: 'PM10',
+      resolution: 'season',
+      bufferRadius: 500,
+      startDate: '2024-01-01',
+      endDate: '2024-03-31',
+    })
+
+    expect(result.aggregateSeries.map((point) => point.label)).toEqual([
+      'Kış 2024',
+      'İlkbahar 2024',
+    ])
+    expect(result.overviewCards[0]?.detail).toBe('mevsimlik çözünürlükte ortalama')
+    expect(result.exportRows[0]?.resolution).toBe('mevsimlik')
+  })
+
+  it('builds scientific summaries for structural change and episodes', () => {
+    const result = analyzeDataset(testDataset, {
+      ...DEFAULT_FILTERS,
+      pollutant: 'PM10',
+      resolution: 'month',
+      bufferRadius: 500,
+      startDate: '2024-01-01',
+      endDate: '2024-03-31',
+    })
+
+    expect(result.seasonalTrendSummary.seasonCount).toBeGreaterThanOrEqual(0)
+    expect(result.changePointSummary.score).toBeGreaterThanOrEqual(0)
+    expect(result.exceedanceEpisodeSummary.threshold).toBe(50)
+    expect(result.kzDecompositionSummary.backgroundShare).toBeGreaterThanOrEqual(0)
+  })
+
+  it('aggregates rose analysis across all selected stations', () => {
+    const result = analyzeDataset(testDataset, {
+      ...DEFAULT_FILTERS,
+      stationId: 'all',
+      pollutant: 'PM10',
+      resolution: 'month',
+      bufferRadius: 500,
+      startDate: '2024-01-01',
+      endDate: '2024-03-31',
+    })
+
+    const southBin = result.roseData.find((row) => row.direction === 'G')
+    const southwestBin = result.roseData.find((row) => row.direction === 'GB')
+
+    expect(southBin?.pollutionMean).toBeCloseTo(35)
+    expect(southwestBin?.pollutionMean).toBeCloseTo(67.5)
   })
 })

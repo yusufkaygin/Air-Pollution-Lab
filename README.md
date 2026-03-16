@@ -1,4 +1,4 @@
-# Bursa Air Quality Scientific Analysis Platform
+# Hava Kirliliği Lab
 
 React + TypeScript + Vite + Leaflet tabanli, backend gerektirmeyen Bursa hava kirliligi analiz uygulamasi.
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import unittest
+from pathlib import Path
 
 from etl import (
     convert_pollutant_unit,
@@ -68,6 +70,61 @@ class PipelineTests(unittest.TestCase):
     def test_safe_year_delta_handles_leap_day(self) -> None:
         shifted = safe_year_delta(parse_timestamp("29.02.2024 00:00").date(), 1)
         self.assertEqual(shifted.isoformat(), "2023-02-28")
+
+    def test_public_dataset_is_real_and_non_demo(self) -> None:
+        dataset_path = Path("public/data/bursa-air-quality-v1.json")
+        self.assertTrue(dataset_path.exists())
+
+        with dataset_path.open("r", encoding="utf-8") as handle:
+            dataset = json.load(handle)
+
+        metadata = dataset["metadata"]
+        metadata_text = json.dumps(metadata, ensure_ascii=False).lower()
+
+        self.assertTrue(metadata["version"].startswith("official-daily-"))
+        self.assertNotIn("mock", metadata_text)
+        self.assertNotIn("synthetic", metadata_text)
+        self.assertNotIn("sentetik", metadata_text)
+        self.assertNotIn("demo", metadata_text)
+
+        self.assertGreater(len(dataset["stations"]), 0)
+        self.assertGreater(len(dataset["stationTimeSeries"]), 0)
+        self.assertGreater(len(dataset["meteoTimeSeries"]), 0)
+        self.assertGreater(len(dataset["contextMetrics"]), 0)
+        self.assertGreater(len(dataset["events"]), 0)
+
+    def test_public_dataset_references_are_consistent(self) -> None:
+        dataset_path = Path("public/data/bursa-air-quality-v1.json")
+
+        with dataset_path.open("r", encoding="utf-8") as handle:
+            dataset = json.load(handle)
+
+        station_ids = {station["id"] for station in dataset["stations"]}
+        station_sources = {row["source"] for row in dataset["stationTimeSeries"]}
+        meteo_sources = {row["source"] for row in dataset["meteoTimeSeries"]}
+        context_station_ids = {row["stationId"] for row in dataset["contextMetrics"]}
+
+        self.assertIn("Ulusal Hava Kalitesi İzleme Ağı", station_sources)
+        self.assertTrue(
+            all(
+                source == "Ulusal Hava Kalitesi İzleme Ağı"
+                or source.startswith("Airqoon / ")
+                or source == "Open-Meteo Air Quality"
+                for source in station_sources
+            )
+        )
+        self.assertEqual(meteo_sources, {"Open-Meteo Archive"})
+        self.assertTrue(all("sourceId" in station for station in dataset["stations"]))
+        self.assertTrue(all("dataSource" in station for station in dataset["stations"]))
+        self.assertTrue(
+            all(row["stationId"] in station_ids for row in dataset["stationTimeSeries"])
+        )
+        self.assertTrue(
+            all(row["stationIdOrGridId"] in station_ids for row in dataset["meteoTimeSeries"])
+        )
+        self.assertEqual(context_station_ids, station_ids)
+        self.assertEqual(len(dataset["contextMetrics"]), len(dataset["stations"]) * 3)
+        self.assertTrue(all(event["name"] for event in dataset["events"]))
 
 
 if __name__ == "__main__":

@@ -1,29 +1,45 @@
-import type { CompareMode, FilterState, LayerKey, Pollutant, TimeResolution } from './types'
+import type {
+  CompareMode,
+  FilterState,
+  LayerKey,
+  Pollutant,
+  StationSourceScope,
+  TimeResolution,
+} from './types'
 
 export const POLLUTANTS: Pollutant[] = ['PM10', 'PM2.5', 'NO2', 'SO2', 'O3']
 
 export const RESOLUTIONS: Array<{ value: TimeResolution; label: string }> = [
-  { value: 'day', label: 'Gunluk' },
-  { value: 'month', label: 'Aylik' },
+  { value: 'day', label: 'Günlük' },
+  { value: 'month', label: 'Aylık' },
   { value: 'season', label: 'Mevsimlik' },
-  { value: 'year', label: 'Yillik' },
+  { value: 'year', label: 'Yıllık' },
 ]
 
 export const COMPARE_MODES: Array<{ value: CompareMode; label: string }> = [
   { value: 'month-over-month', label: 'Ay-Ay' },
   { value: 'season-over-season', label: 'Mevsim-Mevsim' },
-  { value: 'same-month-years', label: 'Ayni Ay Farkli Yil' },
+  { value: 'same-month-years', label: 'Aynı Ay Farklı Yıl' },
 ]
 
 export const BUFFER_OPTIONS: Array<250 | 500 | 1000> = [250, 500, 1000]
 
+export const STATION_SOURCE_SCOPES: Array<{
+  value: StationSourceScope
+  label: string
+}> = [
+  { value: 'official', label: 'Resmî istasyonlar' },
+  { value: 'sensor', label: 'Belediye sensör ağı' },
+  { value: 'modeled', label: 'Model tabanlı seri' },
+  { value: 'all', label: 'Tümü' },
+]
+
 export const LAYER_LABELS: Record<LayerKey, string> = {
-  stations: 'Istasyonlar',
-  fireHotspots: 'Yangin hotspotlari',
+  stations: 'İstasyonlar',
   roads: 'Yollar',
   industries: 'Sanayi/fabrika',
-  greenAreas: 'Yesil alan',
-  elevation: 'Yukseklik',
+  greenAreas: 'Yeşil alan',
+  elevation: 'Yükseklik',
 }
 
 export const SCREENING_THRESHOLDS: Record<Pollutant, number> = {
@@ -38,6 +54,8 @@ export const SCREENING_THRESHOLDS: Record<Pollutant, number> = {
 export const DEFAULT_FILTERS: FilterState = {
   pollutant: 'PM10',
   stationId: 'all',
+  stationSourceScope: 'all',
+  eventId: '',
   resolution: 'month',
   compareMode: 'month-over-month',
   bufferRadius: 500,
@@ -45,11 +63,10 @@ export const DEFAULT_FILTERS: FilterState = {
   endDate: '',
   activeLayers: {
     stations: true,
-    fireHotspots: true,
-    roads: true,
-    industries: true,
+    roads: false,
+    industries: false,
     greenAreas: true,
-    elevation: true,
+    elevation: false,
   },
 }
 

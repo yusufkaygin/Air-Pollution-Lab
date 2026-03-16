@@ -5,34 +5,48 @@ import {
   LAYER_LABELS,
   POLLUTANTS,
   RESOLUTIONS,
+  STATION_SOURCE_SCOPES,
 } from '../constants'
-import type { FilterState, LayerKey, Station } from '../types'
+import type { EventCatalogItem, FilterState, LayerKey, Station } from '../types'
 
 interface ControlPanelProps {
   filters: FilterState
   stations: Station[]
+  events: EventCatalogItem[]
   coverageStart: string
   coverageEnd: string
   onChange: <Key extends keyof FilterState>(key: Key, value: FilterState[Key]) => void
   onLayerToggle: (layer: LayerKey) => void
-  onReset: () => void
+  onEventSelect: (eventId: string) => void
+}
+
+function formatEventRange(event: EventCatalogItem) {
+  const formatter = new Intl.DateTimeFormat('tr-TR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+  const start = formatter.format(new Date(event.startDate))
+  const end = formatter.format(new Date(event.endDate))
+  return start === end ? start : `${start} - ${end}`
 }
 
 export function ControlPanel({
   filters,
   stations,
+  events,
   coverageStart,
   coverageEnd,
   onChange,
   onLayerToggle,
-  onReset,
+  onEventSelect,
 }: ControlPanelProps) {
+  const sortedEvents = [...events].sort((left, right) =>
+    right.startDate.localeCompare(left.startDate),
+  )
+
   return (
     <aside className="control-panel">
-      <div className="panel-heading">
-        <h2>Filtre seti</h2>
-      </div>
-
       <label className="field">
         <span>Kirletici</span>
         <select
@@ -50,12 +64,31 @@ export function ControlPanel({
       </label>
 
       <label className="field">
-        <span>Istasyon</span>
+        <span>Veri kaynağı</span>
+        <select
+          value={filters.stationSourceScope}
+          onChange={(event) =>
+            onChange(
+              'stationSourceScope',
+              event.target.value as FilterState['stationSourceScope'],
+            )
+          }
+        >
+          {STATION_SOURCE_SCOPES.map((scope) => (
+            <option key={scope.value} value={scope.value}>
+              {scope.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="field">
+        <span>İstasyon</span>
         <select
           value={filters.stationId}
           onChange={(event) => onChange('stationId', event.target.value)}
         >
-          <option value="all">Tum istasyonlar</option>
+          <option value="all">Tüm istasyonlar</option>
           {stations.map((station) => (
             <option key={station.id} value={station.id}>
               {station.name}
@@ -64,11 +97,23 @@ export function ControlPanel({
         </select>
       </label>
 
+      <label className="field">
+        <span>Olaylar</span>
+        <select value={filters.eventId} onChange={(event) => onEventSelect(event.target.value)}>
+          <option value="">Özel tarih aralığı</option>
+          {sortedEvents.map((item) => (
+            <option key={item.eventId} value={item.eventId}>
+              {`${item.name} | ${formatEventRange(item)}`}
+            </option>
+          ))}
+        </select>
+      </label>
+
       <div className="field">
-        <span>Tarih araligi</span>
+        <span>Tarih aralığı</span>
         <div className="date-grid">
           <label className="date-field">
-            <small>Baslangic</small>
+            <small>Başlangıç</small>
             <input
               type="date"
               min={coverageStart}
@@ -78,7 +123,7 @@ export function ControlPanel({
             />
           </label>
           <label className="date-field">
-            <small>Bitis</small>
+            <small>Bitiş</small>
             <input
               type="date"
               min={filters.startDate || coverageStart}
@@ -91,7 +136,7 @@ export function ControlPanel({
       </div>
 
       <label className="field">
-        <span>Zaman cozunurlugu</span>
+        <span>Zaman çözünürlüğü</span>
         <select
           value={filters.resolution}
           onChange={(event) =>
@@ -107,7 +152,23 @@ export function ControlPanel({
       </label>
 
       <div className="field">
-        <span>Buffer yaricapi</span>
+        <div className="field-label-row">
+          <span>Buffer yarıçapı</span>
+          <div className="field-help">
+            <button
+              type="button"
+              className="info-button"
+              aria-label="Buffer yarıçapı hakkında bilgi"
+              aria-describedby="buffer-radius-hint"
+            >
+              i
+            </button>
+            <div id="buffer-radius-hint" className="field-hint" role="tooltip">
+              İstasyon çevresindeki yol, yeşil alan, sanayi, yükseklik ve benzeri
+              bağlamsal metriklerin hangi mesafede değerlendirileceğini belirler.
+            </div>
+          </div>
+        </div>
         <div className="pill-row">
           {BUFFER_OPTIONS.map((bufferRadius) => (
             <button
@@ -141,10 +202,6 @@ export function ControlPanel({
           ))}
         </div>
       </div>
-
-      <button type="button" className="reset-button" onClick={onReset}>
-        Filtreleri sifirla
-      </button>
     </aside>
   )
 }

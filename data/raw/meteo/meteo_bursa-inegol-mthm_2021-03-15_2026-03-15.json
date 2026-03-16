@@ -1,7 +1,7 @@
 {
   "latitude": 40.105446,
   "longitude": 29.4958,
-  "generationtime_ms": 114.68040943145752,
+  "generationtime_ms": 152.76587009429932,
   "utc_offset_seconds": 0,
   "timezone": "GMT",
   "timezone_abbreviation": "GMT",
@@ -3671,7 +3671,7 @@
       5.9,
       6.4,
       6.7,
-      6.6
+      6.5
     ],
     "relative_humidity_2m_mean": [
       62,
@@ -7329,7 +7329,7 @@
       0.0,
       0.0,
       0.0,
-      0.1
+      0.0
     ],
     "wind_speed_10m_mean": [
       5.3,
@@ -9158,7 +9158,7 @@
       2.4,
       1.5,
       2.6,
-      3.3
+      3.4
     ],
     "wind_direction_10m_dominant": [
       174,
@@ -10987,7 +10987,7 @@
       14,
       334,
       339,
-      25
+      19
     ]
   }
 }

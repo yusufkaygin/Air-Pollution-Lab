@@ -29,7 +29,10 @@ OVERPASS_ENDPOINTS = (
     "https://overpass.kumi.systems/api/interpreter",
 )
 OPEN_METEO_ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
+OPEN_METEO_AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 OPEN_METEO_ELEVATION_URL = "https://api.open-meteo.com/v1/elevation"
+AIRQOON_API_URL = "https://map.airqoon.com/bursa/api"
+AIRQOON_V2_DEVICES_URL = f"{AIRQOON_API_URL}/v2/devices"
 EONET_EVENTS_URL = "https://eonet.gsfc.nasa.gov/api/v3/events"
 FIRMS_AREA_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
 
@@ -52,12 +55,173 @@ ROAD_WIDTHS_M = {
     "service": 5.0,
 }
 
+CURATED_BURSA_EVENTS: tuple[dict[str, Any], ...] = (
+    {
+        "eventId": "inegol-osb-fabrika-yangini-2023-08-01",
+        "eventType": "industrial-fire",
+        "analysisMode": "spatial",
+        "name": "İnegöl OSB fabrika yangını",
+        "startDate": "2023-08-01T15:30:00Z",
+        "endDate": "2023-08-02T23:59:59Z",
+        "center": {"lat": 40.0876, "lng": 29.514},
+        "radiusKm": 8.0,
+        "source": "Anadolu Ajansı",
+        "confidence": 0.86,
+        "hotspotCount": 1,
+        "note": "İnegöl Organize Sanayi Bölgesi'nde başlayıp bitişik tesislere yayılan fabrika yangını.",
+        "referenceUrl": "https://www.aa.com.tr/tr/gundem/bursadaki-fabrika-yangininda-10-fabrika-hasar-gordu/2959911",
+    },
+    {
+        "eventId": "kuzey-afrika-toz-tasinimi-2024-04-24",
+        "eventType": "dust-transport",
+        "analysisMode": "temporal",
+        "name": "Kuzey Afrika toz taşınımı",
+        "startDate": "2024-04-24T00:00:00Z",
+        "endDate": "2024-04-26T23:59:59Z",
+        "center": {"lat": 40.195, "lng": 29.06},
+        "radiusKm": 55.0,
+        "source": "Anadolu Ajansı",
+        "confidence": 0.74,
+        "hotspotCount": 0,
+        "note": "MGM uyarısına göre Marmara dahil geniş bölgede görüş mesafesi ve partikül yükünü etkileyen toz taşınımı.",
+        "referenceUrl": "https://www.aa.com.tr/tr/yasam/meteorolojiden-kuzey-afrika-kaynakli-toz-tasinimi-uyarisi/3200922",
+    },
+    {
+        "eventId": "lodos-ve-toz-savrulmasi-2024-06-14",
+        "eventType": "wind-event",
+        "analysisMode": "temporal",
+        "name": "Lodos ve toz savrulması",
+        "startDate": "2024-06-14T12:00:00Z",
+        "endDate": "2024-06-14T22:00:00Z",
+        "center": {"lat": 40.195, "lng": 29.06},
+        "radiusKm": 50.0,
+        "source": "Bursa Valiliği",
+        "confidence": 0.78,
+        "hotspotCount": 0,
+        "note": "Bursa Valiliği'nin il geneli için yayımladığı kuvvetli rüzgâr, lodos ve toz savrulması uyarısı.",
+        "referenceUrl": "https://www.bursa.gov.tr/meteorolojik-uyari-2024-25",
+    },
+    {
+        "eventId": "nilufer-yolcati-orman-yangini-2024-06-30",
+        "eventType": "fire",
+        "analysisMode": "spatial",
+        "name": "Nilüfer Yolçatı orman yangını",
+        "startDate": "2024-06-30T14:26:00Z",
+        "endDate": "2024-07-01T12:00:00Z",
+        "center": {"lat": 40.214, "lng": 28.878},
+        "radiusKm": 10.0,
+        "source": "Bursa Büyükşehir Belediyesi İtfaiye",
+        "confidence": 0.82,
+        "hotspotCount": 1,
+        "note": "30 Haziran 2024'te Nilüfer Yolçatı bölgesinde başlayan ve ekiplerin müdahale ettiği orman yangını.",
+        "referenceUrl": "https://itfaiye.bursa.bel.tr/1440/Niluferde_orman_yangini.html",
+    },
+    {
+        "eventId": "yenisehir-kavakli-yangini-2025-08-01",
+        "eventType": "fire",
+        "analysisMode": "spatial",
+        "name": "Yenişehir Kavaklı yangını",
+        "startDate": "2025-08-01T13:55:00Z",
+        "endDate": "2025-08-02T12:00:00Z",
+        "center": {"lat": 40.271, "lng": 29.6},
+        "radiusKm": 12.0,
+        "source": "Bursa Valiliği",
+        "confidence": 0.8,
+        "hotspotCount": 1,
+        "note": "Yenişehir Kavaklı Mahallesi civarında başlayıp ormanlık alana sıçrayan yangın.",
+        "referenceUrl": "https://www.bursa.gov.tr/yenisehir-kavakli-mahallesi-civarinda-cikan-yangin-kontrol-altina-alindi",
+    },
+    {
+        "eventId": "gursu-kestel-orman-yangini-2025-07-26",
+        "eventType": "fire",
+        "analysisMode": "spatial",
+        "name": "Gürsu-Kestel orman yangını",
+        "startDate": "2025-07-26T12:00:00Z",
+        "endDate": "2025-07-27T23:59:59Z",
+        "center": {"lat": 40.222, "lng": 29.208},
+        "radiusKm": 14.0,
+        "source": "Anadolu Ajansı",
+        "confidence": 0.88,
+        "hotspotCount": 1,
+        "note": "Gürsu ve Kestel ilçeleri arasındaki ormanlık alanda başlayan geniş çaplı yangın.",
+        "referenceUrl": "https://www.aa.com.tr/tr/gundem/bursadaki-orman-yangininda-zarar-goren-kirsal-mahallelerde-hasarin-boyutu-gunun-agarmasiyla-ortaya-cikti/3643216",
+    },
+)
+
 
 def safe_year_delta(reference: date, years: int) -> date:
     try:
         return reference.replace(year=reference.year - years)
     except ValueError:
         return reference.replace(year=reference.year - years, month=2, day=28)
+
+
+def parse_iso_utc(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def curated_bursa_events(
+    start_date: date,
+    end_date: date,
+) -> list[dict[str, Any]]:
+    filtered: list[dict[str, Any]] = []
+
+    for event in CURATED_BURSA_EVENTS:
+        event_start = date.fromisoformat(event["startDate"][:10])
+        event_end = date.fromisoformat(event["endDate"][:10])
+
+        if event_end < start_date or event_start > end_date:
+            continue
+
+        filtered.append(
+            {
+                **event,
+                "center": {
+                    "lat": event["center"]["lat"],
+                    "lng": event["center"]["lng"],
+                },
+            }
+        )
+
+    return filtered
+
+
+def merge_event_catalogs(
+    curated_events: list[dict[str, Any]],
+    fetched_events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    merged = list(curated_events)
+
+    for fetched in fetched_events:
+        duplicate = False
+
+        for existing in curated_events:
+            if (
+                "fire" in existing["eventType"]
+                and "fire" in fetched["eventType"]
+                and abs(
+                    (
+                        parse_iso_utc(existing["startDate"])
+                        - parse_iso_utc(fetched["startDate"])
+                    ).days
+                )
+                <= 5
+                and haversine_distance_m(
+                    existing["center"]["lat"],
+                    existing["center"]["lng"],
+                    fetched["center"]["lat"],
+                    fetched["center"]["lng"],
+                )
+                <= 35_000
+            ):
+                duplicate = True
+                break
+
+        if not duplicate:
+            merged.append(fetched)
+
+    merged.sort(key=lambda item: item["startDate"], reverse=True)
+    return merged
 
 
 def month_windows(start_date: date, end_date: date) -> list[tuple[date, date]]:
@@ -115,7 +279,7 @@ def title_to_district(value: str) -> str:
     if "(" in cleaned:
         return cleaned.split("(", 1)[0].strip()
     if cleaned == "Bursa":
-        return "Nilufer"
+        return "Nilüfer"
     return cleaned or "Bursa"
 
 
@@ -167,6 +331,8 @@ def station_reference_lookup(
             "lng": lng,
             "elevationM": 0,
             "pollutants": [],
+            "dataSource": "official",
+            "operator": "Ulusal Hava Kalitesi İzleme Ağı",
         }
 
     return source_to_slug, slug_to_station
@@ -268,9 +434,10 @@ def centroid(coords: list[tuple[float, float]]) -> tuple[float, float]:
 
 
 class CacheSession:
-    def __init__(self, raw_dir: Path) -> None:
+    def __init__(self, raw_dir: Path, force_refresh: bool = False) -> None:
         self.raw_dir = raw_dir
         self.raw_dir.mkdir(parents=True, exist_ok=True)
+        self.force_refresh = force_refresh
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": "codex-bursa-air-quality/1.0"})
 
@@ -281,14 +448,15 @@ class CacheSession:
         params: dict[str, Any] | None = None,
         cache_name: str,
         verify: bool = True,
+        timeout: int = 180,
     ) -> Any:
         cache_path = self.raw_dir / cache_name
 
-        if cache_path.exists():
+        if cache_path.exists() and not self.force_refresh:
             with cache_path.open("r", encoding="utf-8") as handle:
                 return json.load(handle)
 
-        response = self.session.get(url, params=params, timeout=180, verify=verify)
+        response = self.session.get(url, params=params, timeout=timeout, verify=verify)
         response.raise_for_status()
         data = response.json()
 
@@ -304,13 +472,14 @@ class CacheSession:
         params: dict[str, Any] | None = None,
         cache_name: str,
         verify: bool = True,
+        timeout: int = 180,
     ) -> str:
         cache_path = self.raw_dir / cache_name
 
-        if cache_path.exists():
+        if cache_path.exists() and not self.force_refresh:
             return cache_path.read_text(encoding="utf-8")
 
-        response = self.session.get(url, params=params, timeout=180, verify=verify)
+        response = self.session.get(url, params=params, timeout=timeout, verify=verify)
         response.raise_for_status()
         text = response.text
         cache_path.write_text(text, encoding="utf-8")
@@ -318,13 +487,14 @@ class CacheSession:
 
 
 class OfficialAirQualityClient:
-    def __init__(self, raw_dir: Path) -> None:
-        self.cache = CacheSession(raw_dir)
+    def __init__(self, raw_dir: Path, force_refresh: bool = False) -> None:
+        self.cache = CacheSession(raw_dir, force_refresh=force_refresh)
+        self.force_refresh = force_refresh
         self._token: str | None = None
 
     def fetch_defaults(self) -> dict[str, Any]:
         cache_path = self.cache.raw_dir / "station_defaults.json"
-        if cache_path.exists():
+        if cache_path.exists() and not self.force_refresh:
             with cache_path.open("r", encoding="utf-8") as handle:
                 return json.load(handle)
 
@@ -375,7 +545,7 @@ class OfficialAirQualityClient:
         cache_name = f"aq_{data_period}_{start_date.isoformat()}_{end_date.isoformat()}.json"
         cache_path = self.cache.raw_dir / cache_name
 
-        if cache_path.exists():
+        if cache_path.exists() and not self.force_refresh:
             with cache_path.open("r", encoding="utf-8") as handle:
                 return json.load(handle)
 
@@ -410,10 +580,14 @@ class OfficialAirQualityClient:
         return data
 
 
-def fetch_bursa_bbox(raw_dir: Path, stations: list[dict[str, Any]]) -> dict[str, float]:
+def fetch_bursa_bbox(
+    raw_dir: Path,
+    stations: list[dict[str, Any]],
+    force_refresh: bool = False,
+) -> dict[str, float]:
     cache_path = raw_dir / "bursa_bbox.json"
 
-    if cache_path.exists():
+    if cache_path.exists() and not force_refresh:
         with cache_path.open("r", encoding="utf-8") as handle:
             return json.load(handle)
 
@@ -445,7 +619,7 @@ def fetch_bursa_bbox(raw_dir: Path, stations: list[dict[str, Any]]) -> dict[str,
                 with cache_path.open("w", encoding="utf-8") as handle:
                     json.dump(bbox, handle, ensure_ascii=False, indent=2)
                 return bbox
-        except requests.RequestException:
+        except (requests.RequestException, ValueError):
             continue
 
     bbox = bbox_from_stations(stations, padding_deg=0.12)
@@ -454,10 +628,15 @@ def fetch_bursa_bbox(raw_dir: Path, stations: list[dict[str, Any]]) -> dict[str,
     return bbox
 
 
-def overpass_json(raw_dir: Path, cache_name: str, query: str) -> dict[str, Any]:
+def overpass_json(
+    raw_dir: Path,
+    cache_name: str,
+    query: str,
+    force_refresh: bool = False,
+) -> dict[str, Any]:
     cache_path = raw_dir / cache_name
 
-    if cache_path.exists():
+    if cache_path.exists() and not force_refresh:
         with cache_path.open("r", encoding="utf-8") as handle:
             return json.load(handle)
 
@@ -476,7 +655,7 @@ def overpass_json(raw_dir: Path, cache_name: str, query: str) -> dict[str, Any]:
             with cache_path.open("w", encoding="utf-8") as handle:
                 json.dump(data, handle, ensure_ascii=False, indent=2)
             return data
-        except requests.RequestException as exc:
+        except (requests.RequestException, ValueError) as exc:
             last_error = exc
 
     raise RuntimeError(f"Overpass request failed for {cache_name}") from last_error
@@ -490,6 +669,7 @@ def way_coordinates(element: dict[str, Any]) -> list[tuple[float, float]]:
 def fetch_layers(
     raw_dir: Path,
     bbox: dict[str, float],
+    force_refresh: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     bbox_clause = bbox_string(bbox)
 
@@ -513,9 +693,24 @@ def fetch_layers(
         ");out geom tags;"
     )
 
-    road_payload = overpass_json(raw_dir, "roads_bbox_v2.json", road_query)
-    green_payload = overpass_json(raw_dir, "greens_bbox_v2.json", green_query)
-    industry_payload = overpass_json(raw_dir, "industries_bbox_v2.json", industry_query)
+    road_payload = overpass_json(
+        raw_dir,
+        "roads_bbox_v2.json",
+        road_query,
+        force_refresh=force_refresh,
+    )
+    green_payload = overpass_json(
+        raw_dir,
+        "greens_bbox_v2.json",
+        green_query,
+        force_refresh=force_refresh,
+    )
+    industry_payload = overpass_json(
+        raw_dir,
+        "industries_bbox_v2.json",
+        industry_query,
+        force_refresh=force_refresh,
+    )
 
     roads: list[dict[str, Any]] = []
     for element in road_payload.get("elements", []):
@@ -582,10 +777,15 @@ def fetch_layers(
     return roads, industries, green_areas
 
 
-def fetch_elevations(raw_dir: Path, cache_name: str, points: list[tuple[float, float]]) -> list[float]:
+def fetch_elevations(
+    raw_dir: Path,
+    cache_name: str,
+    points: list[tuple[float, float]],
+    force_refresh: bool = False,
+) -> list[float]:
     cache_path = raw_dir / cache_name
 
-    if cache_path.exists():
+    if cache_path.exists() and not force_refresh:
         with cache_path.open("r", encoding="utf-8") as handle:
             payload = json.load(handle)
             return [float(value) for value in payload["elevation"]]
@@ -606,7 +806,11 @@ def fetch_elevations(raw_dir: Path, cache_name: str, points: list[tuple[float, f
     return [float(value) for value in payload["elevation"]]
 
 
-def fetch_elevation_grid(raw_dir: Path, bbox: dict[str, float]) -> list[dict[str, Any]]:
+def fetch_elevation_grid(
+    raw_dir: Path,
+    bbox: dict[str, float],
+    force_refresh: bool = False,
+) -> list[dict[str, Any]]:
     grid_size = 6
     lat_step = (bbox["north"] - bbox["south"]) / grid_size
     lng_step = (bbox["east"] - bbox["west"]) / grid_size
@@ -620,7 +824,12 @@ def fetch_elevation_grid(raw_dir: Path, bbox: dict[str, float]) -> list[dict[str
             east = west + lng_step
             centers.append(((south + north) / 2, (west + east) / 2))
 
-    elevations = fetch_elevations(raw_dir, "elevation_grid.json", centers)
+    elevations = fetch_elevations(
+        raw_dir,
+        "elevation_grid.json",
+        centers,
+        force_refresh=force_refresh,
+    )
     polygons: list[dict[str, Any]] = []
 
     for index, value in enumerate(elevations):
@@ -676,6 +885,7 @@ def sample_points_for_radius(lat: float, lng: float, radius_m: int) -> list[tupl
 def compute_context_metrics(
     raw_dir: Path,
     stations: list[dict[str, Any]],
+    force_refresh: bool = False,
 ) -> list[dict[str, Any]]:
     metrics: list[dict[str, Any]] = []
 
@@ -684,6 +894,7 @@ def compute_context_metrics(
             raw_dir,
             f"context_{station['id']}.json",
             station_feature_query(station),
+            force_refresh=force_refresh,
         )
         building_polygons: list[tuple[list[tuple[float, float]], float, tuple[float, float]]] = []
         green_polygons: list[tuple[list[tuple[float, float]], float, tuple[float, float]]] = []
@@ -732,6 +943,7 @@ def compute_context_metrics(
                 raw_dir,
                 f"elevation_{station['id']}_{radius}.json",
                 sample_points,
+                force_refresh=force_refresh,
             )
             center_elevation = elevations[0]
             elevation_mean = sum(elevations) / len(elevations)
@@ -809,17 +1021,344 @@ def compute_context_metrics(
     return metrics
 
 
+def rolling_windows(
+    start_date: date,
+    end_date: date,
+    *,
+    days: int,
+) -> list[tuple[date, date]]:
+    windows: list[tuple[date, date]] = []
+    cursor = start_date
+
+    while cursor <= end_date:
+        window_end = min(end_date, cursor + timedelta(days=days - 1))
+        windows.append((cursor, window_end))
+        cursor = window_end + timedelta(days=1)
+
+    return windows
+
+
+def normalize_airqoon_name(name: str, tenant_name: str) -> str:
+    prefix = name.split(" - ", 1)[0].strip()
+
+    if prefix and prefix != name:
+        return prefix
+
+    if tenant_name:
+        return f"{tenant_name} / {name}".strip()
+
+    return name
+
+
+def fetch_airqoon_sensor_network(
+    raw_dir: Path,
+    bbox: dict[str, float],
+    start_date: date,
+    end_date: date,
+    force_refresh: bool = False,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, str]]]:
+    network_start = max(start_date, date(2024, 1, 1))
+
+    if network_start > end_date:
+        return [], [], []
+
+    cache = CacheSession(raw_dir, force_refresh=force_refresh)
+    issues: list[dict[str, str]] = []
+
+    try:
+        devices = cache.get_json(
+            AIRQOON_V2_DEVICES_URL,
+            cache_name="airqoon_devices_v2.json",
+            timeout=25,
+        )
+    except requests.RequestException as exc:
+        return (
+            [],
+            [],
+            [
+                {
+                    "id": "airqoon-fetch-failed",
+                    "severity": "warning",
+                    "source": "Airqoon Bursa API",
+                    "message": f"Belediye sensör ağı alınamadı: {exc}",
+                }
+            ],
+        )
+
+    stations: list[dict[str, Any]] = []
+    device_id_to_station: dict[str, dict[str, Any]] = {}
+    used_ids: set[str] = set()
+
+    for device in devices:
+        location = device.get("Location") or {}
+        lat = location.get("Latitude")
+        lng = location.get("Longitude")
+
+        if lat is None or lng is None:
+            continue
+        if not point_in_bbox(float(lat), float(lng), bbox):
+            continue
+
+        tenant_name = str(device.get("TenantName") or "Airqoon")
+        raw_name = str(device.get("Name") or device.get("Label") or device["DeviceId"])
+        display_name = normalize_airqoon_name(raw_name, tenant_name)
+        station_id = slugify_station_id(f"{tenant_name}-{display_name}")
+        counter = 2
+        original_station_id = station_id
+
+        while station_id in used_ids:
+            station_id = f"{original_station_id}-{counter}"
+            counter += 1
+
+        station = {
+            "id": station_id,
+            "sourceId": device["DeviceId"],
+            "name": display_name,
+            "district": tenant_name,
+            "stationType": "sensor-network",
+            "lat": float(lat),
+            "lng": float(lng),
+            "elevationM": 0,
+            "pollutants": [],
+            "dataSource": "municipal-sensor",
+            "operator": tenant_name,
+        }
+        stations.append(station)
+        device_id_to_station[device["DeviceId"]] = station
+        used_ids.add(station_id)
+
+    pollutant_keys = {
+        "PM10": "PM10",
+        "PM25": "PM2.5",
+    }
+    records: list[dict[str, Any]] = []
+    station_pollutants: dict[str, set[str]] = defaultdict(set)
+    network_failures = 0
+    network_aborted = False
+
+    for device_id, station in device_id_to_station.items():
+        if network_aborted:
+            break
+
+        daily_accumulator: dict[tuple[str, str], list[float]] = defaultdict(list)
+
+        for window_start, window_end in rolling_windows(network_start, end_date, days=90):
+            start_ms = int(
+                datetime.combine(window_start, datetime.min.time(), tzinfo=UTC).timestamp()
+                * 1000
+            )
+            end_ms = int(
+                datetime.combine(window_end, datetime.max.time(), tzinfo=UTC).timestamp() * 1000
+            )
+            cache_name = (
+                f"airqoon_{station['id']}_{window_start.isoformat()}_{window_end.isoformat()}.json"
+            )
+
+            try:
+                payload = cache.get_json(
+                    f"{AIRQOON_API_URL}/v2/devices/{device_id}/telemetries",
+                    params={"startTime": start_ms, "endTime": end_ms},
+                    cache_name=cache_name,
+                    timeout=25,
+                )
+            except requests.RequestException:
+                network_failures += 1
+                if network_failures >= 5:
+                    network_aborted = True
+                continue
+
+            for source_key, pollutant in pollutant_keys.items():
+                for item in payload.get(source_key) or []:
+                    try:
+                        value = float(item["Value"])
+                    except (KeyError, TypeError, ValueError):
+                        continue
+
+                    if value < 0:
+                        continue
+
+                    timestamp = str(item.get("Date") or "")
+                    if not timestamp:
+                        continue
+
+                    daily_accumulator[(timestamp[:10], pollutant)].append(value)
+
+        for (day, pollutant), values in sorted(daily_accumulator.items()):
+            records.append(
+                {
+                    "stationId": station["id"],
+                    "timestamp": f"{day}T00:00:00Z",
+                    "pollutant": pollutant,
+                    "value": round(sum(values) / len(values), 4),
+                    "unit": "ug/m3",
+                    "qualityFlag": "screened",
+                    "source": f"Airqoon / {station['operator']}",
+                }
+            )
+            station_pollutants[station["id"]].add(pollutant)
+
+    order = ["PM10", "PM2.5", "NO2", "SO2", "O3"]
+    for station in stations:
+        station["pollutants"] = sorted(station_pollutants.get(station["id"], set()), key=order.index)
+
+    covered_stations = sum(1 for station in stations if station["pollutants"])
+    if covered_stations:
+        issues.append(
+            {
+                "id": "airqoon-network-added",
+                "severity": "info",
+                "source": "Airqoon Bursa API",
+                "message": (
+                    f"Belediye sensör ağından {covered_stations} yardımcı istasyon için "
+                    "2024-01-01 sonrası günlük PM10 ve PM2.5 serisi eklendi."
+                ),
+            }
+        )
+
+    if network_aborted:
+        issues.append(
+            {
+                "id": "airqoon-network-timeout",
+                "severity": "warning",
+                "source": "Airqoon Bursa API",
+                "message": (
+                    "Belediye sensör ağının tarihsel API'si yavaş yanıt verdiği için yalnızca "
+                    "erişilebilen pencereler pakete eklendi."
+                ),
+            }
+        )
+
+    stations = [station for station in stations if station["pollutants"]]
+    valid_station_ids = {station["id"] for station in stations}
+    records = [record for record in records if record["stationId"] in valid_station_ids]
+
+    return stations, records, issues
+
+
+def fetch_modeled_air_quality_backfill(
+    raw_dir: Path,
+    reference_stations: list[dict[str, Any]],
+    start_date: date,
+    end_date: date,
+    force_refresh: bool = False,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, str]]]:
+    cache = CacheSession(raw_dir, force_refresh=force_refresh)
+    issues: list[dict[str, str]] = []
+    stations: list[dict[str, Any]] = []
+    records: list[dict[str, Any]] = []
+
+    pollutant_map = {
+        "pm10": "PM10",
+        "pm2_5": "PM2.5",
+        "nitrogen_dioxide": "NO2",
+        "sulphur_dioxide": "SO2",
+        "ozone": "O3",
+    }
+
+    for station in reference_stations:
+        modeled_station = {
+            "id": f"modeled-{station['id']}",
+            "sourceId": station["id"],
+            "name": f"Model / {station['name']}",
+            "district": station["district"],
+            "stationType": "modeled-background",
+            "lat": station["lat"],
+            "lng": station["lng"],
+            "elevationM": station.get("elevationM", 0),
+            "pollutants": [],
+            "dataSource": "modeled",
+            "operator": "Open-Meteo Air Quality",
+        }
+
+        try:
+            payload = cache.get_json(
+                OPEN_METEO_AIR_QUALITY_URL,
+                params={
+                    "latitude": station["lat"],
+                    "longitude": station["lng"],
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat(),
+                    "hourly": ",".join(pollutant_map.keys()),
+                    "timezone": "GMT",
+                },
+                cache_name=(
+                    f"modeled_air_quality_{station['id']}_{start_date.isoformat()}_"
+                    f"{end_date.isoformat()}.json"
+                ),
+                timeout=60,
+            )
+        except requests.RequestException as exc:
+            issues.append(
+                {
+                    "id": f"modeled-backfill-failed-{station['id']}",
+                    "severity": "warning",
+                    "source": "Open-Meteo Air Quality",
+                    "message": f"{station['name']} için model tabanlı seri alınamadı: {exc}",
+                }
+            )
+            continue
+
+        hourly = payload.get("hourly") or {}
+        daily_values: dict[tuple[str, str], list[float]] = defaultdict(list)
+
+        for source_key, pollutant in pollutant_map.items():
+            for timestamp, value in zip(hourly.get("time") or [], hourly.get(source_key) or []):
+                if value is None:
+                    continue
+                daily_values[(str(timestamp)[:10], pollutant)].append(float(value))
+
+        pollutant_set: set[str] = set()
+        for (day, pollutant), values in sorted(daily_values.items()):
+            if not values:
+                continue
+
+            records.append(
+                {
+                    "stationId": modeled_station["id"],
+                    "timestamp": f"{day}T00:00:00Z",
+                    "pollutant": pollutant,
+                    "value": round(sum(values) / len(values), 4),
+                    "unit": "ug/m3",
+                    "qualityFlag": "estimated",
+                    "source": "Open-Meteo Air Quality",
+                }
+            )
+            pollutant_set.add(pollutant)
+
+        if pollutant_set:
+            order = ["PM10", "PM2.5", "NO2", "SO2", "O3"]
+            modeled_station["pollutants"] = sorted(pollutant_set, key=order.index)
+            stations.append(modeled_station)
+
+    if stations:
+        issues.append(
+            {
+                "id": "modeled-backfill-added",
+                "severity": "info",
+                "source": "Open-Meteo Air Quality",
+                "message": (
+                    f"Resmî istasyon koordinatları için {len(stations)} model tabanlı "
+                    "yardımcı seri üretildi."
+                ),
+            }
+        )
+
+    return stations, records, issues
+
+
 def fetch_meteo_series(
     raw_dir: Path,
     stations: list[dict[str, Any]],
     start_date: date,
     end_date: date,
+    force_refresh: bool = False,
 ) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
+    cache = CacheSession(raw_dir, force_refresh=force_refresh)
 
     for station in stations:
         cache_name = f"meteo_{station['id']}_{start_date.isoformat()}_{end_date.isoformat()}.json"
-        payload = CacheSession(raw_dir).get_json(
+        payload = cache.get_json(
             OPEN_METEO_ARCHIVE_URL,
             params={
                 "latitude": station["lat"],
@@ -957,6 +1496,7 @@ def fetch_fire_events(
     bbox: dict[str, float],
     start_date: date,
     end_date: date,
+    force_refresh: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
     firms_key = os.getenv("FIRMS_MAP_KEY", "").strip()
     issues: list[dict[str, str]] = []
@@ -971,7 +1511,7 @@ def fetch_fire_events(
             window_end = min(end_date, cursor + timedelta(days=9))
             cache_path = raw_dir / f"fires_firms_{window_index:03d}.csv"
 
-            if cache_path.exists():
+            if cache_path.exists() and not force_refresh:
                 text = cache_path.read_text(encoding="utf-8")
             else:
                 url = (
@@ -998,12 +1538,12 @@ def fetch_fire_events(
                     "id": "fires-empty",
                     "severity": "warning",
                     "source": "NASA FIRMS",
-                    "message": "FIRMS sorgusu tamamlandi ancak secili 5 yilda Bursa kutusu icinde hotspot bulunamadi.",
+                    "message": "FIRMS sorgusu tamamlandı ancak seçili 5 yılda Bursa kutusu içinde hotspot bulunamadı.",
                 }
             )
         return events, issues
 
-    payload = CacheSession(raw_dir).get_json(
+    payload = CacheSession(raw_dir, force_refresh=force_refresh).get_json(
         EONET_EVENTS_URL,
         params={"status": "all", "category": "wildfires", "days": 3650, "limit": 500},
         cache_name="fires_eonet.json",
@@ -1037,26 +1577,7 @@ def fetch_fire_events(
                 "source": "NASA EONET",
                 "confidence": 0.55,
                 "hotspotCount": len(geometries),
-                "note": "FIRMS_MAP_KEY tanimli olmadigi icin EONET wildfire fallback kullanildi.",
-            }
-        )
-
-    if not events:
-        issues.append(
-            {
-                "id": "fires-fallback-empty",
-                "severity": "warning",
-                "source": "NASA EONET",
-                "message": "FIRMS_MAP_KEY tanimli degil. EONET fallback Bursa icin olay uretmedi; yangin analizi su an eksik.",
-            }
-        )
-    else:
-        issues.append(
-            {
-                "id": "fires-fallback",
-                "severity": "info",
-                "source": "NASA EONET",
-                "message": "FIRMS_MAP_KEY tanimli olmadigi icin yangin katalogu EONET wildfire fallback ile sinirli tutuldu.",
+                "note": "FIRMS_MAP_KEY tanımlı olmadığı için EONET wildfire fallback kullanıldı.",
             }
         )
 
@@ -1068,7 +1589,14 @@ def build_real_dataset(
     raw_root: Path,
     start_date: date,
     end_date: date,
+    force_refresh: bool = False,
 ) -> dict[str, Any]:
+    latest_complete_day = date.today() - timedelta(days=1)
+    if end_date > latest_complete_day:
+        end_date = latest_complete_day
+
+    airqoon_dir = raw_root / "airqoon"
+    modeled_dir = raw_root / "modeled"
     official_dir = raw_root / "official"
     layers_dir = raw_root / "layers"
     meteo_dir = raw_root / "meteo"
@@ -1078,6 +1606,8 @@ def build_real_dataset(
 
     for directory in (
         official_dir,
+        airqoon_dir,
+        modeled_dir,
         layers_dir,
         meteo_dir,
         context_dir,
@@ -1086,7 +1616,10 @@ def build_real_dataset(
     ):
         directory.mkdir(parents=True, exist_ok=True)
 
-    official_client = OfficialAirQualityClient(official_dir)
+    official_client = OfficialAirQualityClient(
+        official_dir,
+        force_refresh=force_refresh,
+    )
     defaults = official_client.fetch_defaults()["Object"]
     station_rows = [
         station
@@ -1095,8 +1628,13 @@ def build_real_dataset(
     ]
     source_to_slug, slug_to_station = station_reference_lookup(station_rows)
     station_ids = [station["id"] for station in station_rows]
-    stations = list(slug_to_station.values())
-    bbox = fetch_bursa_bbox(layers_dir, stations)
+    official_stations = list(slug_to_station.values())
+    stations = list(official_stations)
+    bbox = fetch_bursa_bbox(
+        layers_dir,
+        stations,
+        force_refresh=force_refresh,
+    )
 
     completeness_by_station_pollutant: dict[tuple[str, str], dict[str, Any]] = defaultdict(
         lambda: {"actualCount": 0, "expectedCount": 0}
@@ -1139,7 +1677,7 @@ def build_real_dataset(
                         "value": round(float(value), 4),
                         "unit": canonical_unit(normalize_pollutant(code)),
                         "qualityFlag": "valid",
-                        "source": "Ulusal Hava Kalitesi Izleme Agi",
+                        "source": "Ulusal Hava Kalitesi İzleme Ağı",
                     }
                 )
 
@@ -1152,17 +1690,108 @@ def build_real_dataset(
         station_pollutants[record["stationId"]].add(record["pollutant"])
 
     order = ["PM10", "PM2.5", "NO2", "SO2", "O3"]
-    for station in stations:
+    for station in official_stations:
         station["pollutants"] = sorted(
             station_pollutants.get(station["id"], set()),
             key=order.index,
         )
 
-    meteo_series = fetch_meteo_series(meteo_dir, stations, start_date, end_date)
-    roads, industries, green_areas = fetch_layers(layers_dir, bbox)
-    context_metrics = compute_context_metrics(context_dir, stations)
-    elevation_grid = fetch_elevation_grid(elevation_dir, bbox)
-    events, fire_issues = fetch_fire_events(fire_dir, bbox, start_date, end_date)
+    supplemental_stations, supplemental_series, airqoon_issues = fetch_airqoon_sensor_network(
+        airqoon_dir,
+        bbox,
+        start_date,
+        end_date,
+        force_refresh=force_refresh,
+    )
+    modeled_stations, modeled_series, modeled_issues = fetch_modeled_air_quality_backfill(
+        modeled_dir,
+        official_stations,
+        start_date,
+        end_date,
+        force_refresh=force_refresh,
+    )
+    base_stations = [*official_stations, *supplemental_stations]
+    stations.extend(supplemental_stations)
+    stations.extend(modeled_stations)
+    station_series.extend(supplemental_series)
+    station_series.extend(modeled_series)
+    station_series.sort(
+        key=lambda item: (item["stationId"], item["timestamp"], item["pollutant"])
+    )
+
+    meteo_series = fetch_meteo_series(
+        meteo_dir,
+        base_stations,
+        start_date,
+        end_date,
+        force_refresh=force_refresh,
+    )
+    modeled_station_lookup = {station["id"]: station for station in modeled_stations}
+    for record in list(meteo_series):
+        modeled_station = modeled_station_lookup.get(f"modeled-{record['stationIdOrGridId']}")
+        if not modeled_station:
+            continue
+        meteo_series.append(
+            {
+                **record,
+                "stationIdOrGridId": modeled_station["id"],
+            }
+        )
+
+    roads, industries, green_areas = fetch_layers(
+        layers_dir,
+        bbox,
+        force_refresh=force_refresh,
+    )
+    context_metrics = compute_context_metrics(
+        context_dir,
+        base_stations,
+        force_refresh=force_refresh,
+    )
+    modeled_context_metrics: list[dict[str, Any]] = []
+    context_by_station_radius = {
+        (metric["stationId"], metric["radiusM"]): metric for metric in context_metrics
+    }
+    for modeled_station in modeled_stations:
+        reference_station_id = modeled_station["sourceId"]
+        for radius in (250, 500, 1000):
+            reference = context_by_station_radius.get((reference_station_id, radius))
+            if not reference:
+                continue
+            modeled_context_metrics.append(
+                {
+                    **reference,
+                    "stationId": modeled_station["id"],
+                }
+            )
+    context_metrics.extend(modeled_context_metrics)
+
+    elevation_grid = fetch_elevation_grid(
+        elevation_dir,
+        bbox,
+        force_refresh=force_refresh,
+    )
+    fetched_events, fire_issues = fetch_fire_events(
+        fire_dir,
+        bbox,
+        start_date,
+        end_date,
+        force_refresh=force_refresh,
+    )
+    curated_events = curated_bursa_events(start_date, end_date)
+    events = merge_event_catalogs(curated_events, fetched_events)
+    event_source_notes = sorted(
+        {
+            event["referenceUrl"]
+            for event in events
+            if isinstance(event, dict) and event.get("referenceUrl")
+        }
+    )
+
+    if any(event.get("source") == "NASA FIRMS" for event in events):
+        event_source_notes.append("https://firms.modaps.eosdis.nasa.gov/api/")
+    elif any(event.get("source") == "NASA EONET" for event in events):
+        event_source_notes.append(EONET_EVENTS_URL)
 
     coverage_rows: list[dict[str, Any]] = []
     completeness_overview: dict[str, dict[str, Any]] = defaultdict(
@@ -1212,8 +1841,8 @@ def build_real_dataset(
                 {
                     "id": f"coverage-{slugify_station_id(pollutant)}",
                     "severity": "warning",
-                    "source": "Ulusal Hava Kalitesi Izleme Agi",
-                    "message": f"{pollutant} icin 5 yillik genel veri butunlugu %{round(ratio * 100, 1)} seviyesinde.",
+                    "source": "Ulusal Hava Kalitesi İzleme Ağı",
+                    "message": f"{pollutant} için 5 yıllık genel veri bütünlüğü %{round(ratio * 100, 1)} seviyesinde.",
                 }
             )
 
@@ -1234,11 +1863,13 @@ def build_real_dataset(
             {
                 "id": f"station-gap-{row['stationId']}-{slugify_station_id(row['pollutant'])}",
                 "severity": "warning",
-                "source": "Ulusal Hava Kalitesi Izleme Agi",
-                "message": f"{station_name} istasyonunda {row['pollutant']} butunlugu %{round(row['completenessRatio'] * 100, 1)} seviyesinde.",
+                "source": "Ulusal Hava Kalitesi İzleme Ağı",
+                "message": f"{station_name} istasyonunda {row['pollutant']} bütünlüğü %{round(row['completenessRatio'] * 100, 1)} seviyesinde.",
             }
         )
 
+    issues.extend(airqoon_issues)
+    issues.extend(modeled_issues)
     issues.extend(fire_issues)
 
     return {
@@ -1247,19 +1878,23 @@ def build_real_dataset(
             "generatedAt": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "coverageStart": start_date.isoformat(),
             "coverageEnd": end_date.isoformat(),
-            "description": "Bursa icin son 5 yillik resmi gunluk hava kalitesi arsivi, meteoroloji baglami ve statik mekansal katman paketi.",
+            "description": "Bursa için son 5 yıllık resmî günlük hava kalitesi arşivi, meteoroloji bağlamı ve statik mekânsal katman paketi.",
             "methods": [
-                "Resmi gunluk istasyon verisi aylik chunk sorgulari",
-                "Open-Meteo gunluk meteoroloji arsivi",
-                "OSM/Overpass tabanli yol, yesil alan ve sanayi katmanlari",
-                "Buffer bazli baglamsal ozet metrikler",
-                "Open-Meteo elevation endpoint ile yukseklik ve egim kestirimi",
+                "Resmî günlük istasyon verisi aylık chunk sorguları",
+                "Airqoon / belediye sensör ağı günlük PM10-PM2.5 yardımcı serisi",
+                "Open-Meteo Air Quality model tabanlı günlük yardımcı seri",
+                "Open-Meteo günlük meteoroloji arşivi",
+                "OSM/Overpass tabanlı yol, yeşil alan ve sanayi katmanları",
+                "Buffer bazlı bağlamsal özet metrikler",
+                "Open-Meteo elevation endpoint ile yükseklik ve eğim kestirimi",
             ],
             "sourceNotes": [
                 OFFICIAL_PAGE_URL,
+                AIRQOON_V2_DEVICES_URL,
+                OPEN_METEO_AIR_QUALITY_URL,
                 OPEN_METEO_ARCHIVE_URL,
                 "https://overpass-api.de/api/interpreter",
-                "https://eonet.gsfc.nasa.gov/api/v3/events",
+                *event_source_notes,
             ],
             "dataIssues": issues,
             "completenessOverview": completeness_cards,

@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -42,6 +42,11 @@ def parse_args() -> argparse.Namespace:
         "--end-date",
         help="Coverage end date in YYYY-MM-DD format. Defaults to today.",
     )
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Ignore cached source files and fetch fresh responses where possible",
+    )
     parser.add_argument("--air-quality-csv", help="Normalized or exported air quality CSV")
     parser.add_argument("--meteo-csv", help="Meteorology CSV")
     parser.add_argument("--context-csv", help="Precomputed station context metrics CSV")
@@ -60,9 +65,12 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if args.mode == "fetch":
+        latest_complete_day = date.today() - timedelta(days=1)
         end_date = (
-            date.fromisoformat(args.end_date) if args.end_date else date.today()
+            date.fromisoformat(args.end_date) if args.end_date else latest_complete_day
         )
+        if end_date > latest_complete_day:
+            end_date = latest_complete_day
         start_date = (
             date.fromisoformat(args.start_date)
             if args.start_date
@@ -72,6 +80,7 @@ def main() -> None:
             raw_root=Path(args.raw_root),
             start_date=start_date,
             end_date=end_date,
+            force_refresh=args.refresh,
         )
     else:
         if not args.air_quality_csv:
