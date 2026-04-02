@@ -1,8 +1,20 @@
 export type Pollutant = 'PM10' | 'PM2.5' | 'NO2' | 'SO2' | 'O3' | 'CO'
-export type StationSourceScope = 'official' | 'sensor' | 'modeled' | 'all'
-export type StationDataSource = 'official' | 'municipal-sensor' | 'modeled'
+export type StationSourceScope =
+  | 'official'
+  | 'municipal-official'
+  | 'sensor'
+  | 'modeled'
+  | 'all'
+export type StationDataSource =
+  | 'official'
+  | 'municipal-official'
+  | 'municipal-sensor'
+  | 'modeled'
 
 export type TimeResolution = 'day' | 'month' | 'season' | 'year'
+export type SurfaceMethod = 'idw' | 'kriging'
+export type SpatialTrainingScope = 'measured' | 'measured-plus-sensor'
+export type AnalysisTab = 'general' | 'spatial' | 'spatial-stats' | 'forecast'
 
 export type EventType =
   | 'fire'
@@ -19,6 +31,10 @@ export type CompareMode =
 
 export type LayerKey =
   | 'pollutionSurface'
+  | 'interpolationSurface'
+  | 'hotspots'
+  | 'risk'
+  | 'proximity'
   | 'stations'
   | 'roads'
   | 'industries'
@@ -74,6 +90,10 @@ export interface Station {
   dataSource?: StationDataSource
   operator?: string
   sourceId?: string
+  locationApproximate?: boolean
+  locationConfidence?: 'high' | 'medium' | 'low'
+  locationBasis?: string
+  locationSourceUrl?: string
 }
 
 export interface StationTimeSeriesRecord {
@@ -164,6 +184,228 @@ export interface BursaDataset {
   elevationGrid: PolygonFeature[]
 }
 
+export interface MapLayerBundle {
+  roads: LineFeature[]
+  industries: PointFeature[]
+  greenAreas: PolygonFeature[]
+  elevationGrid: PolygonFeature[]
+}
+
+export interface SpatialGridCell {
+  id: string
+  row: number
+  col: number
+  center: {
+    lat: number
+    lng: number
+  }
+  coordinates: [number, number][]
+}
+
+export interface SpatialGridSpec {
+  cellSizeKm: number
+  rows: number
+  cols: number
+  bounds: {
+    south: number
+    west: number
+    north: number
+    east: number
+  }
+  boundaryApproximate?: boolean
+  cellIds: string[]
+}
+
+export interface SpatialCellContext {
+  cellId: string
+  roadDensity: number
+  greenRatio: number
+  imperviousRatio: number
+  industryCountWithin3Km: number
+  meanElevation: number
+  slopeMean: number
+  nearestPrimaryRoadM: number | null
+  nearestIndustryM: number | null
+  proximityIndex: number
+}
+
+export interface SpatialSurfaceCellValue {
+  cellId: string
+  value: number | null
+  pollutionLoad: number | null
+  exceedanceRatio: number | null
+}
+
+export interface SpatialSurfaceSlicePayload {
+  supported: boolean
+  unavailableReason?: string
+  eligibleStationCount: number
+  meanStationCompleteness: number
+  cellValues: SpatialSurfaceCellValue[]
+}
+
+export interface SpatialSurfaceSlice {
+  sliceId: string
+  label: string
+  startDate: string
+  endDate: string
+  days: number
+  surfaces: Record<
+    SpatialTrainingScope,
+    Record<SurfaceMethod, SpatialSurfaceSlicePayload>
+  >
+}
+
+export interface SpatialHotspotCell {
+  stationId: string
+  stationName: string
+  lat: number
+  lng: number
+  value: number
+  zScore: number
+  pValue: number | null
+  significance: number
+  classification:
+    | 'hotspot-99'
+    | 'hotspot-95'
+    | 'hotspot-90'
+    | 'coldspot-99'
+    | 'coldspot-95'
+    | 'coldspot-90'
+    | 'not-significant'
+}
+
+export interface SpatialStatsSlicePayload {
+  supported: boolean
+  unavailableReason?: string
+  eligibleStationCount: number
+  meanStationCompleteness: number
+  globalMoranI: number | null
+  globalMoranZScore: number | null
+  globalMoranPValue: number | null
+  hotspots: SpatialHotspotCell[]
+}
+
+export interface SpatialStatsSlice {
+  sliceId: string
+  label: string
+  startDate: string
+  endDate: string
+  scopes: Record<SpatialTrainingScope, SpatialStatsSlicePayload>
+}
+
+export interface RiskOverlayCell {
+  cellId: string
+  score: number
+  label: string
+  pollutionComponent: number
+  hotspotComponent: number
+  proximityComponent: number
+  greenDeficit: number
+  topographicCompression: number
+}
+
+export interface RiskOverlaySlicePayload {
+  supported: boolean
+  unavailableReason?: string
+  eligibleStationCount: number
+  meanStationCompleteness: number
+  cells: RiskOverlayCell[]
+}
+
+export interface RiskOverlaySlice {
+  sliceId: string
+  label: string
+  startDate: string
+  endDate: string
+  scopes: Record<SpatialTrainingScope, RiskOverlaySlicePayload>
+}
+
+export interface SourceDriverCoefficient {
+  key:
+    | 'roadDensity'
+    | 'industryProximity'
+    | 'greenRatio'
+    | 'imperviousRatio'
+    | 'meanElevation'
+    | 'slopeMean'
+    | 'windAlignment'
+  label: string
+  coefficient: number
+}
+
+export interface SourceSummarySlicePayload {
+  supported: boolean
+  unavailableReason?: string
+  sampleCount: number
+  meanStationCompleteness: number
+  modelScore: number | null
+  prevailingWindDirection: number | null
+  coefficients: SourceDriverCoefficient[]
+}
+
+export interface SourceSummarySlice {
+  sliceId: string
+  label: string
+  startDate: string
+  endDate: string
+  scopes: Record<SpatialTrainingScope, SourceSummarySlicePayload>
+}
+
+export interface ForecastPoint {
+  timestamp: string
+  value: number
+  lower: number | null
+  upper: number | null
+}
+
+export interface ForecastSlice {
+  sliceId: string
+  trainingScope: SpatialTrainingScope
+  generatedAt: string
+  horizonDays: 7 | 30
+  supported: boolean
+  unavailableReason?: string
+  mae: number | null
+  rmse: number | null
+  points: ForecastPoint[]
+}
+
+export interface SpatialAnalysisPackage {
+  manifestVersion: string
+  generatedAt: string
+  coreDatasetVersion: string
+  pollutant: Pollutant
+  availableMethods: SurfaceMethod[]
+  availableTrainingScopes: SpatialTrainingScope[]
+  gridSpec: SpatialGridSpec
+  gridCells: SpatialGridCell[]
+  cellContexts: SpatialCellContext[]
+  monthlySlices: SpatialSurfaceSlice[]
+  eventSlices: SpatialSurfaceSlice[]
+  spatialStats: SpatialStatsSlice[]
+  riskOverlays: RiskOverlaySlice[]
+  sourceSummaries: SourceSummarySlice[]
+  forecasts: ForecastSlice[]
+}
+
+export interface AnalysisManifestPackageDescriptor {
+  pollutant: Pollutant
+  url: string
+  availableMethods: SurfaceMethod[]
+  availableTrainingScopes: SpatialTrainingScope[]
+  monthlySliceCount: number
+  eventSliceCount: number
+  sourceScopePaths?: Partial<Record<SpatialTrainingScope, string>>
+}
+
+export interface AnalysisManifest {
+  manifestVersion: string
+  generatedAt: string
+  coreDatasetVersion: string
+  packages: AnalysisManifestPackageDescriptor[]
+}
+
 export interface FilterState {
   pollutant: Pollutant
   stationId: string
@@ -172,6 +414,8 @@ export interface FilterState {
   resolution: TimeResolution
   compareMode: CompareMode
   bufferRadius: 250 | 500 | 1000
+  surfaceMethod: SurfaceMethod
+  spatialTrainingScope: SpatialTrainingScope
   startDate: string
   endDate: string
   activeLayers: Record<LayerKey, boolean>

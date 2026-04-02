@@ -4,11 +4,20 @@ import { useEffect, useRef, useState } from 'react'
 import {
   BUFFER_OPTIONS,
   LAYER_LABELS,
+  SPATIAL_TRAINING_SCOPES,
+  SURFACE_METHODS,
   POLLUTANTS,
   RESOLUTIONS,
   STATION_SOURCE_SCOPES,
 } from '../constants'
-import type { EventCatalogItem, FilterState, LayerKey, Station } from '../types'
+import type {
+  EventCatalogItem,
+  FilterState,
+  LayerKey,
+  Station,
+  SurfaceMethod,
+} from '../types'
+import { stationSourceBadge } from '../utils/stations'
 
 interface ControlPanelProps {
   filters: FilterState
@@ -16,6 +25,9 @@ interface ControlPanelProps {
   events: EventCatalogItem[]
   coverageStart: string
   coverageEnd: string
+  showSpatialControls?: boolean
+  availableSurfaceMethods?: SurfaceMethod[]
+  layerAvailability?: Partial<Record<LayerKey, { enabled: boolean; reason?: string }>>
   onChange: <Key extends keyof FilterState>(key: Key, value: FilterState[Key]) => void
   onLayerToggle: (layer: LayerKey) => void
   onEventSelect: (eventId: string) => void
@@ -98,6 +110,9 @@ export function ControlPanel({
   events,
   coverageStart,
   coverageEnd,
+  showSpatialControls = true,
+  availableSurfaceMethods,
+  layerAvailability,
   onChange,
   onLayerToggle,
   onEventSelect,
@@ -105,6 +120,7 @@ export function ControlPanel({
   const sortedEvents = [...events].sort((left, right) =>
     right.startDate.localeCompare(left.startDate),
   )
+  const showSourceBadge = filters.stationSourceScope === 'all'
 
   return (
     <aside className="control-panel">
@@ -152,7 +168,9 @@ export function ControlPanel({
           <option value="all">Tüm istasyonlar</option>
           {stations.map((station) => (
             <option key={station.id} value={station.id}>
-              {station.name}
+              {showSourceBadge
+                ? `${station.name} · ${stationSourceBadge(station)}`
+                : station.name}
             </option>
           ))}
         </select>
@@ -246,6 +264,55 @@ export function ControlPanel({
         </div>
       </div>
 
+      {showSpatialControls && (
+        <>
+          <label className="field">
+            <span>Yuzey yontemi</span>
+            <select
+              value={filters.surfaceMethod}
+              onChange={(event) =>
+                onChange(
+                  'surfaceMethod',
+                  event.target.value as FilterState['surfaceMethod'],
+                )
+              }
+            >
+              {SURFACE_METHODS.map((method) => (
+                <option
+                  key={method.value}
+                  value={method.value}
+                  disabled={
+                    availableSurfaceMethods !== undefined &&
+                    !availableSurfaceMethods.includes(method.value)
+                  }
+                >
+                  {method.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Egitim kumesi</span>
+            <select
+              value={filters.spatialTrainingScope}
+              onChange={(event) =>
+                onChange(
+                  'spatialTrainingScope',
+                  event.target.value as FilterState['spatialTrainingScope'],
+                )
+              }
+            >
+              {SPATIAL_TRAINING_SCOPES.map((scope) => (
+                <option key={scope.value} value={scope.value}>
+                  {scope.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
+      )}
+
       <div className="field">
         <span>Katmanlar</span>
         <div className="layer-grid">
@@ -255,8 +322,11 @@ export function ControlPanel({
               type="button"
               className={clsx('layer-chip', {
                 active: filters.activeLayers[layer],
+                disabled: layerAvailability?.[layer]?.enabled === false,
               })}
               onClick={() => onLayerToggle(layer)}
+              disabled={layerAvailability?.[layer]?.enabled === false}
+              title={layerAvailability?.[layer]?.reason}
             >
               {LAYER_LABELS[layer]}
             </button>

@@ -1,16 +1,20 @@
 import { addWeeks, subWeeks } from 'date-fns'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { flushSync } from 'react-dom'
-import { HiOutlineCog6Tooth } from 'react-icons/hi2'
+import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ControlPanel } from './components/ControlPanel'
+import { ForecastPanel } from './components/ForecastPanel'
 import { InsightsPanel } from './components/InsightsPanel'
 import { MapPanel } from './components/MapPanel'
-import { DEFAULT_FILTERS } from './constants'
+import { SpatialInsightsPanel } from './components/SpatialInsightsPanel'
+import { SpatialStatsPanel } from './components/SpatialStatsPanel'
+import { ANALYSIS_TABS, DEFAULT_FILTERS } from './constants'
 import { useDataset } from './hooks/useDataset'
-import type { FilterState, LayerKey, Station, StationSourceScope } from './types'
-import { analyzeDataset } from './utils/analytics'
+import { useMapLayers } from './hooks/useMapLayers'
+import { useSpatialAnalysis } from './hooks/useSpatialAnalysis'
+import type { AnalysisTab, FilterState, LayerKey } from './types'
+import { analyzeDataset, type AnalyticsFilters } from './utils/analytics'
 import { exportElementAsPng, exportRowsAsCsv } from './utils/export'
+import { matchesStationFilters } from './utils/stations'
 import './App.css'
 
 function toInputDate(value: Date) {
@@ -27,40 +31,42 @@ function buildEventAnalysisWindow(startDate: string, endDate: string) {
   }
 }
 
-function stationMatchesScope(station: Station, scope: StationSourceScope) {
-  if (scope === 'all') {
-    return true
-  }
-
-  if (scope === 'official') {
-    return station.dataSource === 'official' || !station.dataSource
-  }
-
-  if (scope === 'sensor') {
-    return station.dataSource === 'municipal-sensor'
-  }
-
-  return station.dataSource === 'modeled'
-}
-
 function App() {
-  const { data, loading, error } = useDataset()
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS)
+  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>('general')
   const [exporting, setExporting] = useState<'png' | null>(null)
-  const [showAnalysisOverlay, setShowAnalysisOverlay] = useState(false)
-  const [analysisOverlayClosing, setAnalysisOverlayClosing] = useState(false)
   const reportRef = useRef<HTMLDivElement>(null)
-  const overlayTimersRef = useRef<{
-    fade: ReturnType<typeof setTimeout> | null
-    hide: ReturnType<typeof setTimeout> | null
-  }>({
-    fade: null,
-    hide: null,
-  })
-  const overlayFrameRef = useRef<number | null>(null)
+  const { data, loading, error } = useDataset(filters.pollutant)
+  const mapLayers = useMapLayers(filters.activeLayers)
+  const analyticsFilters = useMemo<AnalyticsFilters>(
+    () => ({
+      pollutant: filters.pollutant,
+      stationId: filters.stationId,
+      stationSourceScope: filters.stationSourceScope,
+      eventId: filters.eventId,
+      resolution: filters.resolution,
+      compareMode: filters.compareMode,
+      bufferRadius: filters.bufferRadius,
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+    }),
+    [
+      filters.bufferRadius,
+      filters.compareMode,
+      filters.endDate,
+      filters.eventId,
+      filters.pollutant,
+      filters.resolution,
+      filters.startDate,
+      filters.stationId,
+      filters.stationSourceScope,
+    ],
+  )
+  const deferredFilters = useDeferredValue(filters)
+  const deferredAnalyticsFilters = useDeferredValue(analyticsFilters)
 
   useEffect(() => {
-    document.title = 'Hava Kirliliği Lab'
+    document.title = 'Hava Kirliligi Lab'
   }, [])
 
   useEffect(() => {
@@ -77,42 +83,20 @@ function App() {
     }
   }, [data, filters.endDate, filters.startDate])
 
-  function clearAnalysisOverlayTimers() {
-    const timers = overlayTimersRef.current
-
-    if (timers.fade) {
-      clearTimeout(timers.fade)
-      timers.fade = null
-    }
-
-    if (timers.hide) {
-      clearTimeout(timers.hide)
-      timers.hide = null
-    }
-
-    if (overlayFrameRef.current !== null) {
-      cancelAnimationFrame(overlayFrameRef.current)
-      overlayFrameRef.current = null
-    }
-  }
-
-  useEffect(() => {
-    return () => clearAnalysisOverlayTimers()
-  }, [])
-
   const analysis = useMemo(() => {
     if (!data) {
       return null
     }
 
-    return analyzeDataset(data, filters)
-  }, [data, filters])
+    return analyzeDataset(data, deferredAnalyticsFilters)
+  }, [data, deferredAnalyticsFilters])
+
   const visibleStations = useMemo(
     () =>
       data?.stations.filter((station) =>
-        stationMatchesScope(station, filters.stationSourceScope),
+        matchesStationFilters(station, filters.stationSourceScope, filters.pollutant),
       ) ?? [],
-    [data, filters.stationSourceScope],
+    [data, filters.pollutant, filters.stationSourceScope],
   )
 
   const visibleDataIssues = useMemo(
@@ -123,41 +107,105 @@ function App() {
     [data],
   )
 
-  function showAnalysisOverlayNow() {
-    const totalMs = 2000 + Math.floor(Math.random() * 1001)
-    const fadeMs = 420
+  const spatialAnalysisEnabled =
+    analysisTab !== 'general' ||
+    filters.activeLayers.interpolationSurface ||
+    filters.activeLayers.proximity ||
+    filters.activeLayers.hotspots ||
+    filters.activeLayers.risk
 
-    clearAnalysisOverlayTimers()
+  const spatialAnalysis = useSpatialAnalysis(data, deferredFilters, spatialAnalysisEnabled)
+  const surfaceLayerReason =
+    spatialAnalysis.unsupportedReason ?? spatialAnalysis.surface?.unsupportedReason
+  const statsLayerReason =
+    spatialAnalysis.unsupportedReason ?? spatialAnalysis.stats?.unsupportedReason
+  const riskLayerReason =
+    spatialAnalysis.unsupportedReason ?? spatialAnalysis.risk?.unsupportedReason
 
-    flushSync(() => {
-      setShowAnalysisOverlay(true)
-      setAnalysisOverlayClosing(false)
-    })
+  const layerAvailability = useMemo(
+    () => ({
+      interpolationSurface: {
+        enabled: !surfaceLayerReason,
+        reason: surfaceLayerReason ?? undefined,
+      },
+      proximity: {
+        enabled: !surfaceLayerReason,
+        reason: surfaceLayerReason ?? undefined,
+      },
+      hotspots: {
+        enabled: !statsLayerReason,
+        reason: statsLayerReason ?? undefined,
+      },
+      risk: {
+        enabled: !riskLayerReason,
+        reason: riskLayerReason ?? undefined,
+      },
+    }),
+    [riskLayerReason, statsLayerReason, surfaceLayerReason],
+  )
 
-    overlayTimersRef.current.fade = setTimeout(() => {
-      setAnalysisOverlayClosing(true)
-    }, Math.max(totalMs - fadeMs, 0))
+  const availableSurfaceMethods = useMemo<FilterState['surfaceMethod'][]>(() => {
+    if (!spatialAnalysis.packageData) {
+      return ['idw']
+    }
 
-    overlayTimersRef.current.hide = setTimeout(() => {
-      setAnalysisOverlayClosing(false)
-      setShowAnalysisOverlay(false)
-    }, totalMs)
-  }
+    const allSlices = [
+      ...spatialAnalysis.packageData.monthlySlices,
+      ...spatialAnalysis.packageData.eventSlices,
+    ]
+    const methods = spatialAnalysis.packageData.availableMethods.filter((method) =>
+      allSlices.some((slice) => slice.surfaces[filters.spatialTrainingScope]?.[method]?.supported),
+    )
 
-  function runWithAnalysisOverlay(action: () => void) {
-    showAnalysisOverlayNow()
+    return methods.length ? methods : spatialAnalysis.packageData.availableMethods
+  }, [filters.spatialTrainingScope, spatialAnalysis.packageData])
 
-    overlayFrameRef.current = requestAnimationFrame(() => {
-      overlayFrameRef.current = null
-      action()
-    })
-  }
+  const exportRows = useMemo(() => {
+    if (!analysis) {
+      return []
+    }
+
+    if (analysisTab === 'spatial' && spatialAnalysis.surface?.exportRows.length) {
+      return spatialAnalysis.surface.exportRows
+    }
+
+    if (analysisTab === 'spatial-stats') {
+      return [
+        ...(spatialAnalysis.stats?.exportRows ?? []),
+        ...(spatialAnalysis.sourceSummary?.exportRows ?? []),
+        ...(spatialAnalysis.risk?.exportRows ?? []),
+      ]
+    }
+
+    if (analysisTab === 'forecast' && spatialAnalysis.forecast?.exportRows.length) {
+      return spatialAnalysis.forecast.exportRows
+    }
+
+    return analysis.exportRows
+  }, [
+    analysis,
+    analysisTab,
+    spatialAnalysis.forecast,
+    spatialAnalysis.risk,
+    spatialAnalysis.sourceSummary,
+    spatialAnalysis.stats,
+    spatialAnalysis.surface,
+  ])
+
+  const exportFilename =
+    analysisTab === 'spatial'
+      ? `bursa-mekansal-${filters.pollutant.toLowerCase()}.csv`
+      : analysisTab === 'spatial-stats'
+        ? `bursa-mekansal-istatistik-${filters.pollutant.toLowerCase()}.csv`
+        : analysisTab === 'forecast'
+          ? `bursa-tahmin-${filters.pollutant.toLowerCase()}.csv`
+          : 'bursa-hava-serisi.csv'
 
   function handleFilterChange<Key extends keyof FilterState>(
     key: Key,
     value: FilterState[Key],
   ) {
-    runWithAnalysisOverlay(() => {
+    startTransition(() => {
       setFilters((current) => {
         if (key === 'stationSourceScope') {
           const stationSourceScope = value as FilterState['stationSourceScope']
@@ -170,7 +218,30 @@ function App() {
             ...current,
             stationSourceScope,
             stationId:
-              selectedStation && !stationMatchesScope(selectedStation, stationSourceScope)
+              selectedStation &&
+              !matchesStationFilters(selectedStation, stationSourceScope, current.pollutant)
+                ? 'all'
+                : current.stationId,
+          }
+        }
+
+        if (key === 'pollutant') {
+          const pollutant = value as FilterState['pollutant']
+          const selectedStation =
+            current.stationId === 'all'
+              ? null
+              : data?.stations.find((station) => station.id === current.stationId) ?? null
+
+          return {
+            ...current,
+            pollutant,
+            stationId:
+              selectedStation &&
+              !matchesStationFilters(
+                selectedStation,
+                current.stationSourceScope,
+                pollutant,
+              )
                 ? 'all'
                 : current.stationId,
           }
@@ -213,7 +284,7 @@ function App() {
   }
 
   function handleLayerToggle(layer: LayerKey) {
-    runWithAnalysisOverlay(() => {
+    startTransition(() => {
       setFilters((current) => ({
         ...current,
         activeLayers: {
@@ -225,7 +296,7 @@ function App() {
   }
 
   function handleEventSelect(eventId: string) {
-    runWithAnalysisOverlay(() => {
+    startTransition(() => {
       if (!data || !eventId) {
         setFilters((current) => ({
           ...current,
@@ -275,9 +346,9 @@ function App() {
     return (
       <main className="app-shell loading-state">
         <div className="status-card">
-          <span className="eyebrow">Hava Kirliliği Lab</span>
-          <h1>Veri paketi yükleniyor</h1>
-          <p>Statik veri demeti belleğe alınıyor ve analiz motoru hazırlanıyor.</p>
+          <span className="eyebrow">Hava Kirliligi Lab</span>
+          <h1>Veri paketi yukleniyor</h1>
+          <p>Parcali veri dosyalari aciliyor; ekran hazir olur olmaz sonuçlar aninda guncellenecek.</p>
         </div>
       </main>
     )
@@ -287,8 +358,8 @@ function App() {
     return (
       <main className="app-shell loading-state">
         <div className="status-card error">
-          <span className="eyebrow">Yükleme Hatası</span>
-          <h1>Veri paketi açılamadı</h1>
+          <span className="eyebrow">Yukleme Hatasi</span>
+          <h1>Veri paketi acilamadi</h1>
           <p>{error ?? 'Bilinmeyen hata'}</p>
         </div>
       </main>
@@ -296,144 +367,176 @@ function App() {
   }
 
   return (
-    <>
-      <div
-        className={`analysis-overlay${showAnalysisOverlay ? ' visible' : ''}${
-          analysisOverlayClosing ? ' closing' : ''
-        }`}
-        aria-hidden={!showAnalysisOverlay}
-        aria-live={showAnalysisOverlay ? 'polite' : undefined}
-        aria-busy={showAnalysisOverlay}
-      >
-        <div className="analysis-overlay-panel">
-          <div className="analysis-visual" aria-hidden="true">
-            <div className="analysis-orbit" />
-            <div className="analysis-pulse">
-              <HiOutlineCog6Tooth className="analysis-cog" aria-hidden="true" />
+    <main className="app-shell">
+      <header className="hero-panel">
+        <div className="hero-copy">
+          <div className="hero-header-row">
+            <span className="eyebrow">Hava Kirliligi Lab</span>
+          </div>
+
+          <div className="hero-title-row">
+            <h1>Bursa Hava Kirliligi Laboratuvari</h1>
+            <div className="export-actions hero-export-actions">
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => {
+                  void exportRowsAsCsv(exportRows, exportFilename)
+                }}
+              >
+                CSV disa aktar
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={handlePngExport}
+                disabled={exporting !== null}
+              >
+                {exporting === 'png' ? 'PNG hazirlaniyor' : 'PNG disa aktar'}
+              </button>
             </div>
           </div>
 
-          <div className="analysis-copy">
-            <h2>Analiz hazırlanıyor</h2>
-            <p>Analiz motoru çalışıyor</p>
-          </div>
+          <p>
+            Zaman serisi, meteoroloji baglami ve cevresel buffer metriklerini tek
+            arayuzde okur.
+          </p>
         </div>
-      </div>
+      </header>
 
-      <main className="app-shell">
-        <header className="hero-panel">
-          <div className="hero-copy">
-            <div className="hero-header-row">
-              <span className="eyebrow">Hava Kirliliği Lab</span>
-            </div>
+      <section className="workspace-grid">
+        <ControlPanel
+          filters={filters}
+          stations={visibleStations}
+          events={data.events}
+          coverageStart={data.metadata.coverageStart}
+          coverageEnd={data.metadata.coverageEnd}
+          showSpatialControls={analysisTab !== 'general'}
+          availableSurfaceMethods={availableSurfaceMethods}
+          layerAvailability={layerAvailability}
+          onChange={handleFilterChange}
+          onLayerToggle={handleLayerToggle}
+          onEventSelect={handleEventSelect}
+        />
 
-            <div className="hero-title-row">
-              <h1>Bursa Hava Kirliliği Laboratuvarı</h1>
-              <div className="export-actions hero-export-actions">
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={() => exportRowsAsCsv(analysis.exportRows, 'bursa-hava-serisi.csv')}
-                >
-                  CSV dışa aktar
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={handlePngExport}
-                  disabled={exporting !== null}
-                >
-                  {exporting === 'png' ? 'PNG hazırlanıyor' : 'PNG dışa aktar'}
-                </button>
-              </div>
-            </div>
-
-            <p>
-              Zaman serisi, meteoroloji bağlamı ve çevresel buffer metriklerini tek
-              arayüzde okur.
-            </p>
-          </div>
-        </header>
-
-        <section className="workspace-grid">
-          <ControlPanel
+        <div className="workspace-main">
+          <MapPanel
+            dataset={data}
+            mapLayers={mapLayers}
             filters={filters}
-            stations={visibleStations}
-            events={data.events}
-            coverageStart={data.metadata.coverageStart}
-            coverageEnd={data.metadata.coverageEnd}
-            onChange={handleFilterChange}
-            onLayerToggle={handleLayerToggle}
-            onEventSelect={handleEventSelect}
+            analysis={analysis}
+            spatialSurface={spatialAnalysis.surface}
+            spatialStats={spatialAnalysis.stats}
+            riskOverlay={spatialAnalysis.risk}
+            spatialLoading={spatialAnalysis.loading}
+            spatialUnsupportedReason={spatialAnalysis.unsupportedReason}
+            onSelectStation={(stationId) => handleFilterChange('stationId', stationId)}
           />
 
-          <div className="workspace-main">
-            <MapPanel
-              dataset={data}
-              filters={filters}
-              analysis={analysis}
-              onSelectStation={(stationId) => handleFilterChange('stationId', stationId)}
-            />
-
-            <div ref={reportRef}>
-              <InsightsPanel analysis={analysis} filters={filters} />
+          <div ref={reportRef}>
+            <div className="analysis-tab-strip" role="tablist" aria-label="Analiz sekmeleri">
+              {ANALYSIS_TABS.map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={analysisTab === tab.value}
+                  className={`analysis-tab${analysisTab === tab.value ? ' active' : ''}`}
+                  onClick={() => setAnalysisTab(tab.value)}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
 
-            <section className="card provenance-panel">
-              <div className="section-heading">
-                <div>
-                  <span className="eyebrow">Veri Notları</span>
-                  <h3>Kaynaklar ve veri bütünlüğü</h3>
-                </div>
-              </div>
+            {analysisTab === 'general' && <InsightsPanel analysis={analysis} filters={filters} />}
 
-              <div className="provenance-grid">
-                <section className="provenance-block">
-                  <h4>Kaynaklar</h4>
-                  <ul className="provenance-list">
-                    {data.metadata.sourceNotes.map((source) => (
-                      <li key={source}>{source}</li>
-                    ))}
-                  </ul>
-                </section>
+            {analysisTab === 'spatial' && (
+              <SpatialInsightsPanel
+                loading={spatialAnalysis.loading}
+                error={spatialAnalysis.error}
+                notices={spatialAnalysis.notices}
+                unsupportedReason={spatialAnalysis.unsupportedReason}
+                filters={filters}
+                surface={spatialAnalysis.surface}
+              />
+            )}
 
-                <section className="provenance-block">
-                  <h4>Resmî ağ veri bütünlüğü</h4>
-                  <div className="quality-strip footer-quality-strip">
-                    {data.metadata.completenessOverview?.map((row) => (
-                      <article key={row.pollutant} className="quality-pill">
-                        <span>{row.pollutant}</span>
-                        <strong>%{Math.round(row.completenessRatio * 100)}</strong>
-                        <small>veri doluluğu</small>
-                      </article>
-                    ))}
-                  </div>
-                </section>
-              </div>
+            {analysisTab === 'spatial-stats' && (
+              <SpatialStatsPanel
+                loading={spatialAnalysis.loading}
+                error={spatialAnalysis.error}
+                unsupportedReason={spatialAnalysis.unsupportedReason}
+                stats={spatialAnalysis.stats}
+                risk={spatialAnalysis.risk}
+                sourceSummary={spatialAnalysis.sourceSummary}
+              />
+            )}
 
-              {!!(data.metadata.completenessOverview?.length || visibleDataIssues.length) && (
-                <section className="provenance-block provenance-issues">
-                  <h4>Eksik veri ve kaynak uyarıları</h4>
-                  <ul className="provenance-list">
-                    {data.metadata.completenessOverview?.map((row) => (
-                      <li key={`missing-${row.pollutant}`}>
-                        <strong>{row.pollutant}:</strong> eksik veri %
-                        {Math.round((1 - row.completenessRatio) * 100)}
-                      </li>
-                    ))}
-                    {visibleDataIssues.map((issue) => (
-                      <li key={issue.id}>
-                        <strong>{issue.source}:</strong> {issue.message}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-            </section>
+            {analysisTab === 'forecast' && (
+              <ForecastPanel
+                loading={spatialAnalysis.loading}
+                error={spatialAnalysis.error}
+                unsupportedReason={spatialAnalysis.unsupportedReason}
+                forecast={spatialAnalysis.forecast}
+              />
+            )}
           </div>
-        </section>
-      </main>
-    </>
+
+          <section className="card provenance-panel">
+            <div className="section-heading">
+              <div>
+                <span className="eyebrow">Veri Notlari</span>
+                <h3>Kaynaklar ve veri butunlugu</h3>
+              </div>
+            </div>
+
+            <div className="provenance-grid">
+              <section className="provenance-block">
+                <h4>Kaynaklar</h4>
+                <ul className="provenance-list">
+                  {data.metadata.sourceNotes.map((source) => (
+                    <li key={source}>{source}</li>
+                  ))}
+                </ul>
+              </section>
+
+              <section className="provenance-block">
+                <h4>Resmi ag veri butunlugu</h4>
+                <div className="quality-strip footer-quality-strip">
+                  {data.metadata.completenessOverview?.map((row) => (
+                    <article key={row.pollutant} className="quality-pill">
+                      <span>{row.pollutant}</span>
+                      <strong>%{Math.round(row.completenessRatio * 100)}</strong>
+                      <small>veri dolulugu</small>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </div>
+
+            {!!(data.metadata.completenessOverview?.length || visibleDataIssues.length) && (
+              <section className="provenance-block provenance-issues">
+                <h4>Eksik veri ve kaynak uyarilari</h4>
+                <ul className="provenance-list">
+                  {data.metadata.completenessOverview?.map((row) => (
+                    <li key={`missing-${row.pollutant}`}>
+                      <strong>{row.pollutant}:</strong> eksik veri %
+                      {Math.round((1 - row.completenessRatio) * 100)}
+                    </li>
+                  ))}
+                  {visibleDataIssues.map((issue) => (
+                    <li key={issue.id}>
+                      <strong>{issue.source}:</strong> {issue.message}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </section>
+        </div>
+      </section>
+    </main>
   )
 }
 

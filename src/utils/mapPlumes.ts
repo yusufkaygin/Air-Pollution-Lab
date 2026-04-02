@@ -173,7 +173,13 @@ function buildBlobPath(
 function spreadForValue(value: number, threshold: number, source?: Station['dataSource']) {
   const normalized = clamp(value / Math.max(threshold * 1.55, threshold + 28), 0, 1)
   const sourceWeight =
-    source === 'official' || !source ? 1 : source === 'municipal-sensor' ? 0.92 : 0.82
+    source === 'official' || !source
+      ? 1
+      : source === 'municipal-official'
+        ? 0.96
+        : source === 'municipal-sensor'
+          ? 0.92
+          : 0.82
 
   return {
     normalized,

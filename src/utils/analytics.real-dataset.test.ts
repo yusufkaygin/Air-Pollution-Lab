@@ -67,4 +67,46 @@ describe('real dataset integrity', () => {
     expect(result.aggregateSeries.length).toBeGreaterThan(0)
     expect(result.exceedanceEpisodeSummary.episodeCount).toBeGreaterThanOrEqual(0)
   })
+
+  it('includes the municipal official source in scoped analysis', () => {
+    const municipalStation = dataset.stations.find(
+      (station) => station.dataSource === 'municipal-official',
+    )
+
+    expect(municipalStation).toBeTruthy()
+
+    const result = analyzeDataset(dataset, {
+      ...DEFAULT_FILTERS,
+      stationSourceScope: 'municipal-official',
+      stationId: municipalStation?.id ?? 'all',
+      pollutant: 'PM10',
+      resolution: 'month',
+      bufferRadius: 500,
+      startDate: dataset.metadata.coverageStart,
+      endDate: dataset.metadata.coverageEnd,
+    })
+
+    expect(result.selectedStations.length).toBeGreaterThan(0)
+    expect(
+      result.selectedStations.every(
+        (station) => station.dataSource === 'municipal-official',
+      ),
+    ).toBe(true)
+    expect(result.aggregateSeries.length).toBeGreaterThan(0)
+  })
+
+  it('keeps municipal official pollutants within the UI-supported set', () => {
+    const municipalStations = dataset.stations.filter(
+      (station) => station.dataSource === 'municipal-official',
+    )
+
+    expect(municipalStations.length).toBeGreaterThan(0)
+    expect(
+      municipalStations.every((station) =>
+        station.pollutants.every((pollutant) =>
+          ['PM10', 'PM2.5', 'NO2', 'SO2', 'O3'].includes(pollutant),
+        ),
+      ),
+    ).toBe(true)
+  })
 })

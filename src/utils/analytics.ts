@@ -16,7 +16,7 @@ import type {
   ScientificDiagnosticCard,
   SeasonalTrendSummary,
   Station,
-  StationSourceScope,
+  StationContextMetric,
   StationSnapshot,
   StationTimeSeriesRecord,
   TimeResolution,
@@ -25,6 +25,7 @@ import type {
 } from '../types'
 import { angularDifference, bearingDegrees, haversineDistanceKm } from './geo'
 import { formatNumber, formatSigned } from './format'
+import { matchesStationFilters } from './stations'
 
 const MONTH_NAMES = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
 const SEASON_NAMES = ['Kış', 'İlkbahar', 'Yaz', 'Sonbahar'] as const
@@ -36,26 +37,89 @@ const RESOLUTION_LABELS: Record<TimeResolution, string> = {
   year: 'yıllık',
 }
 
-function stationMatchesScope(station: Station, scope: StationSourceScope) {
-  if (scope === 'all') {
-    return true
-  }
+export type AnalyticsFilters = Pick<
+  FilterState,
+  | 'pollutant'
+  | 'stationId'
+  | 'stationSourceScope'
+  | 'eventId'
+  | 'resolution'
+  | 'compareMode'
+  | 'bufferRadius'
+  | 'startDate'
+  | 'endDate'
+>
 
-  if (scope === 'official') {
-    return station.dataSource === 'official' || !station.dataSource
-  }
-
-  if (scope === 'sensor') {
-    return station.dataSource === 'municipal-sensor'
-  }
-
-  return station.dataSource === 'modeled'
+interface AnalyticsDatasetIndex {
+  stationRecordsById: Map<string, StationTimeSeriesRecord[]>
+  meteoRecordsById: Map<string, MeteoTimeSeriesRecord[]>
+  meteoByStationTimestamp: Map<string, MeteoTimeSeriesRecord>
+  contextByRadius: Map<250 | 500 | 1000, Map<string, StationContextMetric>>
 }
 
-function scopedStations(dataset: BursaDataset, filters: FilterState) {
+const analyticsIndexCache = new WeakMap<BursaDataset, AnalyticsDatasetIndex>()
+
+function scopedStations(dataset: BursaDataset, filters: AnalyticsFilters) {
   return dataset.stations.filter((station) =>
-    stationMatchesScope(station, filters.stationSourceScope),
+    matchesStationFilters(station, filters.stationSourceScope, filters.pollutant),
   )
+}
+
+function sortByTimestamp<T extends { timestamp: string }>(records: T[]) {
+  records.sort((left, right) => left.timestamp.localeCompare(right.timestamp))
+  return records
+}
+
+function getAnalyticsDatasetIndex(dataset: BursaDataset): AnalyticsDatasetIndex {
+  const cached = analyticsIndexCache.get(dataset)
+  if (cached) {
+    return cached
+  }
+
+  const stationRecordsById = new Map<string, StationTimeSeriesRecord[]>()
+  for (const record of dataset.stationTimeSeries) {
+    const bucket = stationRecordsById.get(record.stationId)
+    if (bucket) {
+      bucket.push(record)
+    } else {
+      stationRecordsById.set(record.stationId, [record])
+    }
+  }
+  for (const bucket of stationRecordsById.values()) {
+    sortByTimestamp(bucket)
+  }
+
+  const meteoRecordsById = new Map<string, MeteoTimeSeriesRecord[]>()
+  const meteoByStationTimestamp = new Map<string, MeteoTimeSeriesRecord>()
+  for (const record of dataset.meteoTimeSeries) {
+    const bucket = meteoRecordsById.get(record.stationIdOrGridId)
+    if (bucket) {
+      bucket.push(record)
+    } else {
+      meteoRecordsById.set(record.stationIdOrGridId, [record])
+    }
+    meteoByStationTimestamp.set(`${record.stationIdOrGridId}__${record.timestamp}`, record)
+  }
+  for (const bucket of meteoRecordsById.values()) {
+    sortByTimestamp(bucket)
+  }
+
+  const contextByRadius = new Map<250 | 500 | 1000, Map<string, StationContextMetric>>()
+  for (const metric of dataset.contextMetrics) {
+    const radiusBucket =
+      contextByRadius.get(metric.radiusM) ?? new Map<string, StationContextMetric>()
+    radiusBucket.set(metric.stationId, metric)
+    contextByRadius.set(metric.radiusM, radiusBucket)
+  }
+
+  const index = {
+    stationRecordsById,
+    meteoRecordsById,
+    meteoByStationTimestamp,
+    contextByRadius,
+  }
+  analyticsIndexCache.set(dataset, index)
+  return index
 }
 
 function mean(values: number[]) {
@@ -605,35 +669,59 @@ function computeMonthlyZScores(
   })
 }
 
+function collectStationRecords(
+  index: AnalyticsDatasetIndex,
+  stationIds: string[],
+  predicate?: (record: StationTimeSeriesRecord) => boolean,
+) {
+  const records: StationTimeSeriesRecord[] = []
+
+  for (const stationId of stationIds) {
+    const stationRecords = index.stationRecordsById.get(stationId) ?? []
+    if (!predicate) {
+      records.push(...stationRecords)
+      continue
+    }
+
+    for (const record of stationRecords) {
+      if (predicate(record)) {
+        records.push(record)
+      }
+    }
+  }
+
+  return records
+}
+
 function filterStationSeries(
-  dataset: BursaDataset,
-  filters: FilterState,
+  index: AnalyticsDatasetIndex,
+  filters: AnalyticsFilters,
   stationIds: string[],
 ) {
-  return dataset.stationTimeSeries.filter(
+  return collectStationRecords(
+    index,
+    stationIds,
     (record) =>
       record.pollutant === filters.pollutant &&
-      stationIds.includes(record.stationId) &&
       isRecordInsideDateRange(record.timestamp, filters.startDate, filters.endDate),
   )
 }
 
 function computeStationSnapshots(
-  dataset: BursaDataset,
-  filters: FilterState,
+  index: AnalyticsDatasetIndex,
+  filters: AnalyticsFilters,
   stations: Station[],
 ): StationSnapshot[] {
   return stations
     .map<StationSnapshot>((station) => {
-      const selectedStationRecords = filterStationSeries(dataset, filters, [station.id]).sort(
-        (left, right) => left.timestamp.localeCompare(right.timestamp),
+      const allStationRecords = collectStationRecords(
+        index,
+        [station.id],
+        (record) => record.pollutant === filters.pollutant,
       )
-      const allStationRecords = dataset.stationTimeSeries
-        .filter(
-          (record) =>
-            record.stationId === station.id && record.pollutant === filters.pollutant,
-        )
-        .sort((left, right) => left.timestamp.localeCompare(right.timestamp))
+      const selectedStationRecords = allStationRecords.filter((record) =>
+        isRecordInsideDateRange(record.timestamp, filters.startDate, filters.endDate),
+      )
       const recent = selectedStationRecords.slice(-16)
       const monthlySeries = aggregateRecords(selectedStationRecords, 'month')
       const climatologyMonthlySeries = aggregateRecords(allStationRecords, 'month')
@@ -669,7 +757,7 @@ function computeWeekdayWeekendDifference(records: StationTimeSeriesRecord[]) {
 
 function buildComparisonSeries(
   records: StationTimeSeriesRecord[],
-  filters: FilterState,
+  filters: AnalyticsFilters,
 ) {
   if (filters.compareMode === 'month-over-month') {
     return aggregateRecords(records, 'month').slice(-18)
@@ -691,17 +779,15 @@ function buildComparisonSeries(
 }
 
 function computeCorrelations(
-  dataset: BursaDataset,
-  filters: FilterState,
+  index: AnalyticsDatasetIndex,
+  filters: AnalyticsFilters,
   stations: Station[],
 ): CorrelationRow[] {
-  const metrics = dataset.contextMetrics.filter(
-    (metric) => metric.radiusM === filters.bufferRadius,
-  )
+  const metrics = [...(index.contextByRadius.get(filters.bufferRadius)?.values() ?? [])]
 
   const stationMeans = stations
     .map((station) => {
-      const values = filterStationSeries(dataset, filters, [station.id]).map(
+      const values = filterStationSeries(index, filters, [station.id]).map(
         (record) => record.value,
       )
 
@@ -762,8 +848,8 @@ function circularMean(records: MeteoTimeSeriesRecord[]) {
 }
 
 function computeRoseData(
-  dataset: BursaDataset,
-  filters: FilterState,
+  index: AnalyticsDatasetIndex,
+  filters: AnalyticsFilters,
   stationIds: string[],
 ): RoseBin[] {
   const activeStationIds =
@@ -773,22 +859,12 @@ function computeRoseData(
     return []
   }
 
-  const meteoByTimestamp = new Map(
-    dataset.meteoTimeSeries
-      .filter(
-        (record) =>
-          activeStationIds.includes(record.stationIdOrGridId) &&
-          isRecordInsideDateRange(record.timestamp, filters.startDate, filters.endDate),
-      )
-      .map((record) => [`${record.stationIdOrGridId}__${record.timestamp}`, record]),
-  )
-
   const bins = new Map<string, { pollutant: number[]; wind: number[] }>()
 
-  filterStationSeries(dataset, filters, activeStationIds).forEach((record) => {
-    const meteo = meteoByTimestamp.get(`${record.stationId}__${record.timestamp}`)
+  filterStationSeries(index, filters, activeStationIds).forEach((record) => {
+    const meteo = index.meteoByStationTimestamp.get(`${record.stationId}__${record.timestamp}`)
 
-    if (!meteo) {
+    if (!meteo || !isRecordInsideDateRange(meteo.timestamp, filters.startDate, filters.endDate)) {
       return
     }
 
@@ -842,8 +918,8 @@ function baselineMeanForEvent(
 }
 
 function computeEventImpact(
-  dataset: BursaDataset,
-  filters: FilterState,
+  index: AnalyticsDatasetIndex,
+  filters: AnalyticsFilters,
   event: EventCatalogItem | null,
   stations: Station[],
 ): EventImpactStation[] {
@@ -856,13 +932,13 @@ function computeEventImpact(
 
   return stations
     .map<EventImpactStation>((station) => {
-      const stationRecords = dataset.stationTimeSeries.filter(
-        (record) =>
-          record.stationId === station.id && record.pollutant === filters.pollutant,
+      const stationRecords = collectStationRecords(
+        index,
+        [station.id],
+        (record) => record.pollutant === filters.pollutant,
       )
-      const meteoRecords = dataset.meteoTimeSeries.filter(
+      const meteoRecords = (index.meteoRecordsById.get(station.id) ?? []).filter(
         (record) =>
-          record.stationIdOrGridId === station.id &&
           parseDate(record.timestamp) >= eventStart &&
           parseDate(record.timestamp) <= eventEnd,
       )
@@ -933,7 +1009,7 @@ function buildOverviewCards(
   climatologyMonthlySeries: TimeSeriesPoint[],
   rawRecords: StationTimeSeriesRecord[],
   trendSummary: TrendSummary,
-  filters: FilterState,
+  filters: AnalyticsFilters,
 ) {
   const zScores = computeMonthlyZScores(monthlySeries, climatologyMonthlySeries)
   const anomalyMean = mean(zScores)
@@ -1058,18 +1134,17 @@ function buildScientificDiagnostics(
 }
 
 function buildContextSelection(
-  dataset: BursaDataset,
+  index: AnalyticsDatasetIndex,
   selectedStations: Station[],
   bufferRadius: 250 | 500 | 1000,
 ) {
-  return dataset.contextMetrics.filter(
-    (metric) =>
-      metric.radiusM === bufferRadius &&
-      selectedStations.some((station) => station.id === metric.stationId),
+  const stationIds = new Set(selectedStations.map((station) => station.id))
+  return [...(index.contextByRadius.get(bufferRadius)?.values() ?? [])].filter((metric) =>
+    stationIds.has(metric.stationId),
   )
 }
 
-function pickEvent(dataset: BursaDataset, filters: FilterState) {
+function pickEvent(dataset: BursaDataset, filters: AnalyticsFilters) {
   if (filters.eventId) {
     return dataset.events.find((event) => event.eventId === filters.eventId) ?? null
   }
@@ -1091,22 +1166,23 @@ function pickEvent(dataset: BursaDataset, filters: FilterState) {
 
 export function analyzeDataset(
   dataset: BursaDataset,
-  filters: FilterState,
+  filters: AnalyticsFilters,
 ): AnalysisResult {
+  const index = getAnalyticsDatasetIndex(dataset)
   const availableStations = scopedStations(dataset, filters)
   const selectedStations =
     filters.stationId === 'all'
       ? availableStations
       : availableStations.filter((station) => station.id === filters.stationId)
   const rawRecords = filterStationSeries(
-    dataset,
+    index,
     filters,
     selectedStations.map((station) => station.id),
   )
-  const climatologyRecords = dataset.stationTimeSeries.filter(
-    (record) =>
-      record.pollutant === filters.pollutant &&
-      selectedStations.some((station) => station.id === record.stationId),
+  const climatologyRecords = collectStationRecords(
+    index,
+    selectedStations.map((station) => station.id),
+    (record) => record.pollutant === filters.pollutant,
   )
   const aggregateSeries = aggregateRecords(rawRecords, filters.resolution)
   const monthlySeries = aggregateRecords(rawRecords, 'month')
@@ -1120,7 +1196,7 @@ export function analyzeDataset(
   )
   const kzDecompositionSummary = computeKzDecomposition(monthlySeries)
   const selectedContextMetrics = buildContextSelection(
-    dataset,
+    index,
     selectedStations,
     filters.bufferRadius,
   )
@@ -1133,7 +1209,7 @@ export function analyzeDataset(
   )
 
   return {
-    stationSnapshots: computeStationSnapshots(dataset, filters, availableStations),
+    stationSnapshots: computeStationSnapshots(index, filters, availableStations),
     selectedStations,
     selectedContextMetrics,
     aggregateSeries,
@@ -1152,14 +1228,14 @@ export function analyzeDataset(
     exceedanceEpisodeSummary,
     kzDecompositionSummary,
     scientificDiagnostics,
-    correlations: computeCorrelations(dataset, filters, availableStations),
+    correlations: computeCorrelations(index, filters, availableStations),
     roseData: computeRoseData(
-      dataset,
+      index,
       filters,
       selectedStations.map((station) => station.id),
     ),
     event,
-    eventImpactRows: computeEventImpact(dataset, filters, event, availableStations),
+    eventImpactRows: computeEventImpact(index, filters, event, availableStations),
     exportRows: aggregateSeries.map((point) => ({
       bucket: point.label,
       key: point.key,

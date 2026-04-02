@@ -12,6 +12,7 @@ from typing import Any
 
 import requests
 
+from .municipal_official import load_municipal_official_network
 from .pipeline import slugify_station_id
 
 
@@ -1021,6 +1022,55 @@ def compute_context_metrics(
     return metrics
 
 
+def approximate_context_metrics_from_reference(
+    target_stations: list[dict[str, Any]],
+    reference_stations: list[dict[str, Any]],
+    reference_context_metrics: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not target_stations or not reference_stations or not reference_context_metrics:
+        return []
+
+    metric_lookup = {
+        (metric["stationId"], metric["radiusM"]): metric
+        for metric in reference_context_metrics
+    }
+    approximated: list[dict[str, Any]] = []
+
+    for target in target_stations:
+        nearest_station = min(
+            reference_stations,
+            key=lambda station: haversine_distance_m(
+                target["lat"],
+                target["lng"],
+                station["lat"],
+                station["lng"],
+            ),
+        )
+
+        elevation_reference = (
+            metric_lookup.get((nearest_station["id"], 250))
+            or metric_lookup.get((nearest_station["id"], 500))
+            or metric_lookup.get((nearest_station["id"], 1000))
+        )
+        if elevation_reference:
+            target["elevationM"] = round(float(elevation_reference["meanElevation"]), 2)
+
+        for radius in (250, 500, 1000):
+            reference_metric = metric_lookup.get((nearest_station["id"], radius))
+            if not reference_metric:
+                continue
+
+            approximated.append(
+                {
+                    **reference_metric,
+                    "stationId": target["id"],
+                }
+            )
+
+    approximated.sort(key=lambda item: (item["stationId"], item["radiusM"]))
+    return approximated
+
+
 def rolling_windows(
     start_date: date,
     end_date: date,
@@ -1596,6 +1646,7 @@ def build_real_dataset(
         end_date = latest_complete_day
 
     airqoon_dir = raw_root / "airqoon"
+    municipal_official_dir = raw_root / "municipal_official"
     modeled_dir = raw_root / "modeled"
     official_dir = raw_root / "official"
     layers_dir = raw_root / "layers"
@@ -1607,6 +1658,7 @@ def build_real_dataset(
     for directory in (
         official_dir,
         airqoon_dir,
+        municipal_official_dir,
         modeled_dir,
         layers_dir,
         meteo_dir,
@@ -1703,6 +1755,11 @@ def build_real_dataset(
         end_date,
         force_refresh=force_refresh,
     )
+    municipal_official_stations, municipal_official_series, municipal_official_issues, municipal_official_source_notes = load_municipal_official_network(
+        municipal_official_dir,
+        start_date,
+        end_date,
+    )
     modeled_stations, modeled_series, modeled_issues = fetch_modeled_air_quality_backfill(
         modeled_dir,
         official_stations,
@@ -1710,10 +1767,16 @@ def build_real_dataset(
         end_date,
         force_refresh=force_refresh,
     )
-    base_stations = [*official_stations, *supplemental_stations]
+    physical_reference_stations = [*official_stations, *supplemental_stations]
+    meteo_reference_stations = [
+        *physical_reference_stations,
+        *municipal_official_stations,
+    ]
     stations.extend(supplemental_stations)
+    stations.extend(municipal_official_stations)
     stations.extend(modeled_stations)
     station_series.extend(supplemental_series)
+    station_series.extend(municipal_official_series)
     station_series.extend(modeled_series)
     station_series.sort(
         key=lambda item: (item["stationId"], item["timestamp"], item["pollutant"])
@@ -1721,7 +1784,7 @@ def build_real_dataset(
 
     meteo_series = fetch_meteo_series(
         meteo_dir,
-        base_stations,
+        meteo_reference_stations,
         start_date,
         end_date,
         force_refresh=force_refresh,
@@ -1745,9 +1808,15 @@ def build_real_dataset(
     )
     context_metrics = compute_context_metrics(
         context_dir,
-        base_stations,
+        physical_reference_stations,
         force_refresh=force_refresh,
     )
+    municipal_context_metrics = approximate_context_metrics_from_reference(
+        municipal_official_stations,
+        physical_reference_stations,
+        context_metrics,
+    )
+    context_metrics.extend(municipal_context_metrics)
     modeled_context_metrics: list[dict[str, Any]] = []
     context_by_station_radius = {
         (metric["stationId"], metric["radiusM"]): metric for metric in context_metrics
@@ -1868,7 +1937,18 @@ def build_real_dataset(
             }
         )
 
+    if municipal_official_stations:
+        issues.append(
+            {
+                "id": "municipal-official-context-approximate",
+                "severity": "info",
+                "source": "Resmi Belediye Kaynağı",
+                "message": "Resmi belediye istasyonlarının bağlamsal buffer metrikleri yaklaşık konum ve en yakın referans istasyon profiliyle tamamlandı.",
+            }
+        )
+
     issues.extend(airqoon_issues)
+    issues.extend(municipal_official_issues)
     issues.extend(modeled_issues)
     issues.extend(fire_issues)
 
@@ -1882,6 +1962,7 @@ def build_real_dataset(
             "methods": [
                 "Resmî günlük istasyon verisi aylık chunk sorguları",
                 "Airqoon / belediye sensör ağı günlük PM10-PM2.5 yardımcı serisi",
+                "Bursa Büyükşehir Belediyesi düzenlenmiş saatlik istasyon dosyasından günlük resmi belediye serisi",
                 "Open-Meteo Air Quality model tabanlı günlük yardımcı seri",
                 "Open-Meteo günlük meteoroloji arşivi",
                 "OSM/Overpass tabanlı yol, yeşil alan ve sanayi katmanları",
@@ -1894,6 +1975,7 @@ def build_real_dataset(
                 OPEN_METEO_AIR_QUALITY_URL,
                 OPEN_METEO_ARCHIVE_URL,
                 "https://overpass-api.de/api/interpreter",
+                *municipal_official_source_notes,
                 *event_source_notes,
             ],
             "dataIssues": issues,

@@ -15,6 +15,8 @@ from etl import (
     build_dataset_from_local_files,
     build_real_dataset,
     safe_year_delta,
+    write_dataset_chunk_artifacts,
+    write_spatial_analysis_artifacts,
 )
 
 
@@ -56,6 +58,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--industries-json", help="Industry point layer JSON")
     parser.add_argument("--green-areas-json", help="Green area polygon layer JSON")
     parser.add_argument("--elevation-json", help="Elevation polygon layer JSON")
+    parser.add_argument(
+        "--dataset-chunk-output-dir",
+        default="public/data/dataset",
+        help="Directory for lazy-loadable core/meteo/pollutant dataset chunks",
+    )
+    parser.add_argument(
+        "--spatial-output-dir",
+        default="public/data/spatial",
+        help="Directory for lazy-loadable spatial analysis packages",
+    )
     return parser.parse_args()
 
 
@@ -100,6 +112,12 @@ def main() -> None:
 
     with output_path.open("w", encoding="utf-8") as handle:
         json.dump(dataset, handle, ensure_ascii=False, separators=(",", ":"))
+
+    dataset_chunk_output_dir = Path(args.dataset_chunk_output_dir)
+    write_dataset_chunk_artifacts(dataset, dataset_chunk_output_dir)
+
+    spatial_output_dir = Path(args.spatial_output_dir)
+    write_spatial_analysis_artifacts(dataset, spatial_output_dir)
 
 
 if __name__ == "__main__":

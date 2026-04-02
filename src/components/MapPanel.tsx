@@ -21,19 +21,31 @@ import type {
   AnalysisResult,
   BursaDataset,
   FilterState,
+  MapLayerBundle,
   PolygonFeature,
-  Station,
 } from '../types'
 import { formatNumber } from '../utils/format'
+import type {
+  RiskOverlayAggregation,
+  SpatialStatsAggregation,
+  SpatialSurfaceAggregation,
+} from '../utils/spatialAnalysis'
 import {
   buildPollutionPlumes,
   POLLUTION_OVERLAY_VIEWBOX,
 } from '../utils/mapPlumes'
+import { matchesStationFilters, stationSourceBadge } from '../utils/stations'
 
 interface MapPanelProps {
   dataset: BursaDataset
+  mapLayers: Partial<MapLayerBundle>
   filters: FilterState
   analysis: AnalysisResult
+  spatialSurface: SpatialSurfaceAggregation | null
+  spatialStats: SpatialStatsAggregation | null
+  riskOverlay: RiskOverlayAggregation | null
+  spatialLoading: boolean
+  spatialUnsupportedReason: string | null
   onSelectStation: (stationId: string) => void
 }
 
@@ -90,22 +102,6 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
 }
 
-function stationMatchesScope(station: Station, scope: FilterState['stationSourceScope']) {
-  if (scope === 'all') {
-    return true
-  }
-
-  if (scope === 'official') {
-    return station.dataSource === 'official' || !station.dataSource
-  }
-
-  if (scope === 'sensor') {
-    return station.dataSource === 'municipal-sensor'
-  }
-
-  return station.dataSource === 'modeled'
-}
-
 function pollutionBand(value: number) {
   if (value >= 90) {
     return { color: '#b42318', label: 'Çok yüksek' }
@@ -120,6 +116,50 @@ function pollutionBand(value: number) {
   }
 
   return { color: '#1f7a5b', label: 'Düşük' }
+}
+
+function proximityBand(value: number) {
+  if (value >= 0.7) {
+    return { color: '#b42318', label: 'Yuksek baski' }
+  }
+
+  if (value >= 0.45) {
+    return { color: '#d97706', label: 'Orta baski' }
+  }
+
+  return { color: '#1f7a5b', label: 'Dusuk baski' }
+}
+
+function riskBand(value: number) {
+  if (value >= 0.75) {
+    return { color: '#991b1b', label: 'Cok yuksek risk' }
+  }
+  if (value >= 0.55) {
+    return { color: '#c2410c', label: 'Yuksek risk' }
+  }
+  if (value >= 0.35) {
+    return { color: '#ca8a04', label: 'Orta risk' }
+  }
+  return { color: '#1f7a5b', label: 'Dusuk risk' }
+}
+
+function hotspotBand(zScore: number) {
+  if (zScore >= 2.58) {
+    return { color: '#b42318', label: 'Hotspot %99' }
+  }
+  if (zScore >= 1.96) {
+    return { color: '#d97706', label: 'Hotspot %95' }
+  }
+  if (zScore >= 1.65) {
+    return { color: '#ca8a04', label: 'Hotspot %90' }
+  }
+  if (zScore <= -2.58) {
+    return { color: '#155e75', label: 'Coldspot %99' }
+  }
+  if (zScore <= -1.96) {
+    return { color: '#0f766e', label: 'Coldspot %95' }
+  }
+  return { color: '#0d9488', label: 'Coldspot %90' }
 }
 
 function roadStyle(category: string, emphasizeTerrain: boolean) {
@@ -414,8 +454,14 @@ function buildElevationSurface(polygons: PolygonFeature[]): ElevationSurface | n
 
 export function MapPanel({
   dataset,
+  mapLayers,
   filters,
   analysis,
+  spatialSurface,
+  spatialStats,
+  riskOverlay,
+  spatialLoading,
+  spatialUnsupportedReason,
   onSelectStation,
 }: MapPanelProps) {
   const [boundary, setBoundary] = useState<BoundaryGeoJson | null>(null)
@@ -430,28 +476,34 @@ export function MapPanel({
   const visibleStations = useMemo(
     () =>
       dataset.stations.filter((station) =>
-        stationMatchesScope(station, filters.stationSourceScope),
+        matchesStationFilters(station, filters.stationSourceScope, filters.pollutant),
       ),
-    [dataset.stations, filters.stationSourceScope],
+    [dataset.stations, filters.pollutant, filters.stationSourceScope],
   )
   const selectedSnapshot = selectedStation
     ? snapshotByStationId.get(selectedStation.id) ?? null
     : null
   const boundaryRings = boundaryToLeafletRings(boundary)
   const selectionBand = pollutionBand(selectedSnapshot?.currentValue ?? 0)
+  const roads = mapLayers.roads ?? dataset.roads
+  const industries = mapLayers.industries ?? dataset.industries
+  const greenAreas = mapLayers.greenAreas ?? dataset.greenAreas
+  const elevationGrid = mapLayers.elevationGrid ?? dataset.elevationGrid
   const elevationSurface = useMemo(
-    () => buildElevationSurface(dataset.elevationGrid),
-    [dataset.elevationGrid],
+    () => (filters.activeLayers.elevation ? buildElevationSurface(elevationGrid) : null),
+    [elevationGrid, filters.activeLayers.elevation],
   )
   const pollutionPlumes = useMemo(
     () =>
-      buildPollutionPlumes(
-        visibleStations,
-        snapshotByStationId,
-        filters.pollutant,
-        BURSA_FOCUS_BOUNDS,
-      ),
-    [filters.pollutant, snapshotByStationId, visibleStations],
+      filters.activeLayers.pollutionSurface
+        ? buildPollutionPlumes(
+            visibleStations,
+            snapshotByStationId,
+            filters.pollutant,
+            BURSA_FOCUS_BOUNDS,
+          )
+        : [],
+    [filters.activeLayers.pollutionSurface, filters.pollutant, snapshotByStationId, visibleStations],
   )
   const emphasizeTerrain = filters.activeLayers.elevation
   const terrainBaseUrl = emphasizeTerrain
@@ -465,6 +517,12 @@ export function MapPanel({
     : 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}'
   const hillshadeOpacity = emphasizeTerrain ? 0.5 : 0.24
   const referenceOpacity = emphasizeTerrain ? 0.86 : 0.84
+  const scientificSurfaceCells =
+    spatialSurface?.cells.filter((cell) => cell.value !== null) ?? []
+  const proximityCells = spatialSurface?.highestProximityCells ?? []
+  const hotspotStations =
+    spatialStats?.hotspots.filter((hotspot) => Math.abs(hotspot.zScore) >= 1.65) ?? []
+  const riskCells = riskOverlay?.cells ?? []
 
   useEffect(() => {
     const controller = new AbortController()
@@ -636,7 +694,7 @@ export function MapPanel({
 
           {filters.activeLayers.greenAreas && (
             <Pane name="greens" style={{ zIndex: 320 }}>
-              {dataset.greenAreas.map((polygon) => (
+              {greenAreas.map((polygon) => (
                 <Polygon
                   key={polygon.id}
                   positions={polygon.coordinates.map(([lat, lng]) => [lat, lng])}
@@ -654,6 +712,42 @@ export function MapPanel({
                   </Tooltip>
                 </Polygon>
               ))}
+            </Pane>
+          )}
+
+          {filters.activeLayers.interpolationSurface && !!scientificSurfaceCells.length && (
+            <Pane name="scientific-surface" style={{ zIndex: 348 }}>
+              {scientificSurfaceCells.map((cell) => {
+                const band = pollutionBand(cell.value ?? 0)
+
+                return (
+                  <Polygon
+                    key={`scientific-${cell.id}`}
+                    positions={cell.coordinates.map(([lat, lng]) => [lat, lng])}
+                    pathOptions={{
+                      color: band.color,
+                      fillColor: band.color,
+                      fillOpacity: 0.18,
+                      opacity: 0.3,
+                      weight: 1,
+                    }}
+                  >
+                    <Tooltip sticky className="map-tooltip">
+                      <strong>
+                        Hücre {cell.row + 1}-{cell.col + 1}
+                      </strong>
+                      <br />
+                      Yüzey: {formatNumber(cell.value)} µg/m3
+                      <br />
+                      Aşım oranı: {formatNumber((cell.exceedanceRatio ?? 0) * 100, 0)}%
+                      <br />
+                      Yola mesafe: {formatNumber(cell.nearestPrimaryRoadM, 0)} m
+                      <br />
+                      Sanayi mesafe: {formatNumber(cell.nearestIndustryM, 0)} m
+                    </Tooltip>
+                  </Polygon>
+                )
+              })}
             </Pane>
           )}
 
@@ -742,7 +836,7 @@ export function MapPanel({
 
           {filters.activeLayers.roads && (
             <Pane name="roads" style={{ zIndex: 380 }}>
-              {dataset.roads.map((line) => {
+              {roads.map((line) => {
                 const style = roadStyle(line.category, emphasizeTerrain)
 
                 return (
@@ -768,7 +862,7 @@ export function MapPanel({
 
           {filters.activeLayers.industries && (
             <Pane name="industries" style={{ zIndex: 520 }}>
-              {dataset.industries.map((industry) => (
+              {industries.map((industry) => (
                 <Marker
                   key={industry.id}
                   position={[industry.lat, industry.lng]}
@@ -781,6 +875,113 @@ export function MapPanel({
                   </Tooltip>
                 </Marker>
               ))}
+            </Pane>
+          )}
+
+          {filters.activeLayers.risk && !!riskCells.length && (
+            <Pane name="risk" style={{ zIndex: 540 }}>
+              {riskCells.map((cell) => {
+                const band = riskBand(cell.score)
+
+                return (
+                  <Polygon
+                    key={`risk-${cell.id}`}
+                    positions={cell.coordinates.map(([lat, lng]) => [lat, lng])}
+                    pathOptions={{
+                      color: band.color,
+                      fillColor: band.color,
+                      fillOpacity: 0.14,
+                      opacity: 0.55,
+                      weight: 1.3,
+                    }}
+                  >
+                    <Tooltip sticky className="map-tooltip">
+                      <strong>
+                        HÃ¼cre {cell.row + 1}-{cell.col + 1}
+                      </strong>
+                      <br />
+                      Risk: {band.label}
+                      <br />
+                      Skor: {formatNumber(cell.score * 100, 0)}%
+                      <br />
+                      Hotspot sinyali: {formatNumber(cell.hotspotComponent * 100, 0)}%
+                      <br />
+                      YakÄ±nlÄ±k: {formatNumber(cell.proximityComponent * 100, 0)}%
+                    </Tooltip>
+                  </Polygon>
+                )
+              })}
+            </Pane>
+          )}
+
+          {filters.activeLayers.hotspots && !!hotspotStations.length && (
+            <Pane name="hotspots" style={{ zIndex: 610 }}>
+              {hotspotStations.map((hotspot) => {
+                const band = hotspotBand(hotspot.zScore)
+                const radius = Math.max(700, Math.min(Math.abs(hotspot.zScore) * 420, 2200))
+
+                return (
+                  <Circle
+                    key={`hotspot-${hotspot.stationId}`}
+                    center={[hotspot.lat, hotspot.lng]}
+                    radius={radius}
+                    pathOptions={{
+                      color: band.color,
+                      fillColor: band.color,
+                      fillOpacity: 0.12,
+                      opacity: 0.85,
+                      weight: 1.8,
+                    }}
+                  >
+                    <Tooltip sticky className="map-tooltip">
+                      <strong>{hotspot.stationName}</strong>
+                      <br />
+                      {band.label}
+                      <br />
+                      Z: {formatNumber(hotspot.zScore, 2)}
+                      <br />
+                      P: {formatNumber(hotspot.pValue, 3)}
+                      <br />
+                      Ortalama: {formatNumber(hotspot.value)} Âµg/m3
+                    </Tooltip>
+                  </Circle>
+                )
+              })}
+            </Pane>
+          )}
+
+          {filters.activeLayers.proximity && !!proximityCells.length && (
+            <Pane name="proximity" style={{ zIndex: 560 }}>
+              {proximityCells.map((cell) => {
+                const band = proximityBand(cell.proximityIndex)
+
+                return (
+                  <Polygon
+                    key={`proximity-${cell.id}`}
+                    positions={cell.coordinates.map(([lat, lng]) => [lat, lng])}
+                    pathOptions={{
+                      color: band.color,
+                      fillColor: band.color,
+                      fillOpacity: 0.08,
+                      opacity: 0.9,
+                      weight: 2.1,
+                      dashArray: '4 6',
+                    }}
+                  >
+                    <Tooltip sticky className="map-tooltip">
+                      <strong>
+                        Hücre {cell.row + 1}-{cell.col + 1}
+                      </strong>
+                      <br />
+                      Yakınlık: {band.label}
+                      <br />
+                      Birincil yol: {formatNumber(cell.nearestPrimaryRoadM, 0)} m
+                      <br />
+                      Sanayi: {formatNumber(cell.nearestIndustryM, 0)} m
+                    </Tooltip>
+                  </Polygon>
+                )
+              })}
             </Pane>
           )}
 
@@ -802,6 +1003,8 @@ export function MapPanel({
                   >
                     <Tooltip sticky className="map-tooltip">
                       <strong>{station.name}</strong>
+                      <br />
+                      Kaynak: {stationSourceBadge(station)}
                       <br />
                       Son ortalama: {formatNumber(snapshot?.currentValue ?? null)} µg/m3
                       <br />
@@ -859,6 +1062,74 @@ export function MapPanel({
             </div>
           </div>
 
+          {filters.activeLayers.interpolationSurface && (
+            <div className="legend-block">
+              <strong>Bilimsel yüzey</strong>
+              <div className="legend-row">
+                <span className="legend-chip scientific-surface" />
+                <span>
+                  {(spatialSurface?.effectiveMethod ?? filters.surfaceMethod) === 'kriging'
+                    ? 'Kriging tabanli 5 km grid'
+                    : 'IDW tabanli 5 km grid'}
+                </span>
+              </div>
+              <div className="legend-row">
+                <span className="legend-chip scientific-outline" />
+                <span>Aylık/event dilim birleşimi</span>
+              </div>
+            </div>
+          )}
+
+          {filters.activeLayers.proximity && (
+            <div className="legend-block">
+              <strong>Yakınlık baskısı</strong>
+              <div className="legend-row">
+                <span className="legend-chip proximity-high" />
+                <span>Yol ve sanayi etkisi yüksek</span>
+              </div>
+              <div className="legend-row">
+                <span className="legend-chip proximity-mid" />
+                <span>Orta baskı</span>
+              </div>
+            </div>
+          )}
+
+          {filters.activeLayers.hotspots && !!hotspotStations.length && (
+            <div className="legend-block">
+              <strong>Hotspot / coldspot</strong>
+              <div className="legend-row">
+                <span className="legend-dot" style={{ background: '#b42318' }} />
+                <span>Gi* hotspot</span>
+              </div>
+              <div className="legend-row">
+                <span className="legend-dot" style={{ background: '#0f766e' }} />
+                <span>Gi* coldspot</span>
+              </div>
+            </div>
+          )}
+
+          {filters.activeLayers.risk && !!riskCells.length && (
+            <div className="legend-block">
+              <strong>Cevresel risk</strong>
+              <div className="legend-row">
+                <span className="legend-dot" style={{ background: '#1f7a5b' }} />
+                <span>Dusuk</span>
+              </div>
+              <div className="legend-row">
+                <span className="legend-dot" style={{ background: '#ca8a04' }} />
+                <span>Orta</span>
+              </div>
+              <div className="legend-row">
+                <span className="legend-dot" style={{ background: '#c2410c' }} />
+                <span>Yuksek</span>
+              </div>
+              <div className="legend-row">
+                <span className="legend-dot" style={{ background: '#991b1b' }} />
+                <span>Cok yuksek</span>
+              </div>
+            </div>
+          )}
+
           {emphasizeTerrain && (
             <div className="legend-block">
               <strong>Yükselti yüzeyi</strong>
@@ -891,6 +1162,14 @@ export function MapPanel({
             </div>
           </div>
         </div>
+
+        {(spatialLoading || spatialUnsupportedReason) && (
+          <div className="map-status-note">
+            {spatialLoading
+              ? 'Mekansal analiz paketi yukleniyor.'
+              : spatialUnsupportedReason}
+          </div>
+        )}
       </div>
     </section>
   )

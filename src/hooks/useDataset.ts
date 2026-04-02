@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { startTransition, useEffect, useState } from 'react'
 
-import type { BursaDataset } from '../types'
+import type { BursaDataset, Pollutant } from '../types'
+import { loadBaseDataset, loadDatasetMeteo } from '../utils/datasetLoader'
 
 interface DatasetState {
   data: BursaDataset | null
@@ -8,9 +9,7 @@ interface DatasetState {
   error: string | null
 }
 
-const DATA_URL = '/data/bursa-air-quality-v1.json'
-
-export function useDataset(): DatasetState {
+export function useDataset(pollutant: Pollutant): DatasetState {
   const [state, setState] = useState<DatasetState>({
     data: null,
     loading: true,
@@ -18,43 +17,88 @@ export function useDataset(): DatasetState {
   })
 
   useEffect(() => {
-    const controller = new AbortController()
+    let cancelled = false
+
+    startTransition(() => {
+      setState((current) => ({
+        data: current.data,
+        loading: current.data === null,
+        error: null,
+      }))
+    })
 
     async function loadDataset() {
       try {
-        const response = await fetch(DATA_URL, { signal: controller.signal })
+        const baseData = await loadBaseDataset(pollutant, { includeMeteo: false })
 
-        if (!response.ok) {
-          throw new Error(`Dataset request failed: ${response.status}`)
-        }
-
-        const data = (await response.json()) as BursaDataset
-
-        setState({
-          data,
-          loading: false,
-          error: null,
-        })
-      } catch (error) {
-        if (controller.signal.aborted) {
+        if (cancelled) {
           return
         }
 
-        setState({
-          data: null,
-          loading: false,
-          error:
-            error instanceof Error
-              ? error.message
-              : 'Dataset could not be loaded.',
+        startTransition(() => {
+          setState((current) => ({
+            data: {
+              ...baseData,
+              meteoTimeSeries:
+                current.data?.metadata.version === baseData.metadata.version
+                  ? current.data.meteoTimeSeries
+                  : baseData.meteoTimeSeries,
+            },
+            loading: false,
+            error: null,
+          }))
+        })
+
+        if (baseData.meteoTimeSeries.length > 0) {
+          return
+        }
+
+        const meteoTimeSeries = await loadDatasetMeteo()
+
+        if (cancelled) {
+          return
+        }
+
+        startTransition(() => {
+          setState((current) => {
+            if (!current.data || current.data.metadata.version !== baseData.metadata.version) {
+              return current
+            }
+
+            return {
+              data: {
+                ...current.data,
+                meteoTimeSeries,
+              },
+              loading: false,
+              error: null,
+            }
+          })
+        })
+      } catch (error) {
+        if (cancelled) {
+          return
+        }
+
+        const message =
+          error instanceof Error ? error.message : 'Dataset could not be loaded.'
+
+        startTransition(() => {
+          setState((current) => ({
+            data: current.data,
+            loading: false,
+            error: current.data ? null : message,
+          }))
         })
       }
     }
 
     void loadDataset()
 
-    return () => controller.abort()
-  }, [])
+    return () => {
+      cancelled = true
+    }
+  }, [pollutant])
 
   return state
 }

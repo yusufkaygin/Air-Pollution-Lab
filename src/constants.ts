@@ -1,13 +1,16 @@
 import type {
+  AnalysisTab,
   CompareMode,
   FilterState,
   LayerKey,
   Pollutant,
+  SpatialTrainingScope,
   StationSourceScope,
+  SurfaceMethod,
   TimeResolution,
 } from './types'
 
-export const POLLUTANTS: Pollutant[] = ['PM10', 'PM2.5', 'NO2', 'SO2', 'O3']
+export const POLLUTANTS: Pollutant[] = ['PM10', 'PM2.5', 'NO2', 'SO2', 'O3', 'CO']
 
 export const RESOLUTIONS: Array<{ value: TimeResolution; label: string }> = [
   { value: 'day', label: 'Günlük' },
@@ -24,11 +27,38 @@ export const COMPARE_MODES: Array<{ value: CompareMode; label: string }> = [
 
 export const BUFFER_OPTIONS: Array<250 | 500 | 1000> = [250, 500, 1000]
 
+export const SURFACE_METHODS: Array<{
+  value: SurfaceMethod
+  label: string
+}> = [
+  { value: 'idw', label: 'IDW' },
+  { value: 'kriging', label: 'Kriging' },
+]
+
+export const SPATIAL_TRAINING_SCOPES: Array<{
+  value: SpatialTrainingScope
+  label: string
+}> = [
+  { value: 'measured', label: 'Olculen istasyonlar' },
+  { value: 'measured-plus-sensor', label: 'Olculen + belediye sensoru' },
+]
+
+export const ANALYSIS_TABS: Array<{
+  value: AnalysisTab
+  label: string
+}> = [
+  { value: 'general', label: 'Genel' },
+  { value: 'spatial', label: 'Mekansal' },
+  { value: 'spatial-stats', label: 'Mekansal Istatistik' },
+  { value: 'forecast', label: 'Tahmin' },
+]
+
 export const STATION_SOURCE_SCOPES: Array<{
   value: StationSourceScope
   label: string
 }> = [
   { value: 'official', label: 'Resmî istasyonlar' },
+  { value: 'municipal-official', label: 'Resmi belediye' },
   { value: 'sensor', label: 'Belediye sensör ağı' },
   { value: 'modeled', label: 'Model tabanlı seri' },
   { value: 'all', label: 'Tümü' },
@@ -36,6 +66,10 @@ export const STATION_SOURCE_SCOPES: Array<{
 
 export const LAYER_LABELS: Record<LayerKey, string> = {
   pollutionSurface: 'Kirlilik bulutu',
+  interpolationSurface: 'Bilimsel yuzey',
+  hotspots: 'Hotspot',
+  risk: 'Cevresel risk',
+  proximity: 'Yakinlik',
   stations: 'İstasyonlar',
   roads: 'Yollar',
   industries: 'Sanayi/fabrika',
@@ -60,10 +94,16 @@ export const DEFAULT_FILTERS: FilterState = {
   resolution: 'month',
   compareMode: 'month-over-month',
   bufferRadius: 500,
+  surfaceMethod: 'idw',
+  spatialTrainingScope: 'measured',
   startDate: '',
   endDate: '',
   activeLayers: {
     pollutionSurface: true,
+    interpolationSurface: false,
+    hotspots: false,
+    risk: false,
+    proximity: false,
     stations: true,
     roads: false,
     industries: false,

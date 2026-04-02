@@ -1,7 +1,5 @@
-import { saveAs } from 'file-saver'
-import { toPng, toSvg } from 'html-to-image'
-
-function downloadText(filename: string, content: string, type: string) {
+async function downloadText(filename: string, content: string, type: string) {
+  const { saveAs } = await import('file-saver')
   const blob = new Blob([content], { type })
   saveAs(blob, filename)
 }
@@ -20,7 +18,7 @@ function escapeCsvValue(value: string | number | null) {
   return stringValue
 }
 
-export function exportRowsAsCsv(
+export async function exportRowsAsCsv(
   rows: Array<Record<string, string | number | null>>,
   filename: string,
 ) {
@@ -34,10 +32,14 @@ export function exportRowsAsCsv(
     ...rows.map((row) => headers.map((header) => escapeCsvValue(row[header])).join(',')),
   ].join('\n')
 
-  downloadText(filename, csv, 'text/csv;charset=utf-8')
+  await downloadText(filename, csv, 'text/csv;charset=utf-8')
 }
 
 export async function exportElementAsPng(element: HTMLElement, filename: string) {
+  const [{ saveAs }, { toPng }] = await Promise.all([
+    import('file-saver'),
+    import('html-to-image'),
+  ])
   const dataUrl = await toPng(element, {
     cacheBust: true,
     pixelRatio: 2,
@@ -48,6 +50,10 @@ export async function exportElementAsPng(element: HTMLElement, filename: string)
 }
 
 export async function exportElementAsSvg(element: HTMLElement, filename: string) {
+  const [{ saveAs }, { toSvg }] = await Promise.all([
+    import('file-saver'),
+    import('html-to-image'),
+  ])
   const dataUrl = await toSvg(element, {
     cacheBust: true,
     backgroundColor: '#faf4ea',
