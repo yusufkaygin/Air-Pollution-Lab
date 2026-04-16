@@ -404,6 +404,7 @@ def build_dataset_from_local_files(
         "meteoTimeSeries": meteo_series,
         "contextMetrics": context_metrics,
         "events": events,
+        "neighborhoods": [],
         "roads": _load_optional_json(roads_json),
         "industries": _load_optional_json(industries_json),
         "greenAreas": _load_optional_json(green_areas_json),

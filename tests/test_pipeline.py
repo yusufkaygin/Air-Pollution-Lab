@@ -177,6 +177,7 @@ class PipelineTests(unittest.TestCase):
 
         self.assertEqual(manifest["manifestVersion"], DATASET_CHUNK_MANIFEST_VERSION)
         self.assertEqual(manifest["datasetVersion"], "test-dataset-1")
+        self.assertEqual(files["core.json"]["neighborhoods"], [])
         self.assertEqual(files["core.json"]["roads"], [])
         self.assertEqual(files["core.json"]["greenAreas"], [])
         self.assertEqual(files["meteo.json"], dataset["meteoTimeSeries"])
@@ -185,6 +186,7 @@ class PipelineTests(unittest.TestCase):
             files[manifest["stationSeriesPaths"]["PM10"]],
             dataset["stationTimeSeries"],
         )
+        self.assertEqual(files["neighborhoods.json"], dataset["neighborhoods"])
         self.assertEqual(files["roads.json"], dataset["roads"])
         self.assertEqual(files["industries.json"], dataset["industries"])
         self.assertEqual(files["greenAreas.json"], dataset["greenAreas"])
@@ -310,6 +312,7 @@ def build_spatial_fixture_dataset() -> dict[str, object]:
                         "humidityPct": 55 + station_index,
                         "windSpeedMs": 2.1 + (station_index * 0.2),
                         "windDirDeg": 45 + (month_index * 12) + station_index,
+                        "surfacePressureHpa": 1012 - station_index,
                         "precipitationMm": 0.2 * (day % 3),
                         "source": "test-meteo",
                     }
@@ -343,6 +346,30 @@ def build_spatial_fixture_dataset() -> dict[str, object]:
                 "confidence": 0.9,
                 "hotspotCount": 3,
                 "note": "test event",
+            }
+        ],
+        "neighborhoods": [
+            {
+                "id": "osmangazi-demirtaspasa",
+                "name": "Demirtaşpaşa",
+                "district": "Osmangazi",
+                "center": {"lat": 40.08, "lng": 29.03},
+                "areaKm2": 1.8,
+                "stationIds": ["station-a", "station-b"],
+                "buildingCount": None,
+                "buildingDensity": 0.42,
+                "roadDensity": 3.1,
+                "industryCount": 1,
+                "greenRatio": 0.18,
+                "meanElevation": 145,
+                "slopeMean": 3.8,
+                "coordinates": [
+                    [40.04, 28.99],
+                    [40.04, 29.07],
+                    [40.11, 29.07],
+                    [40.11, 28.99],
+                    [40.04, 28.99],
+                ],
             }
         ],
         "roads": [

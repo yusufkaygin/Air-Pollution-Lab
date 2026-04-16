@@ -267,7 +267,7 @@ export function ControlPanel({
       {showSpatialControls && (
         <>
           <label className="field">
-            <span>Yuzey yontemi</span>
+            <span>Yüzey yöntemi</span>
             <select
               value={filters.surfaceMethod}
               onChange={(event) =>
@@ -293,7 +293,7 @@ export function ControlPanel({
           </label>
 
           <label className="field">
-            <span>Egitim kumesi</span>
+            <span>Eğitim kümesi</span>
             <select
               value={filters.spatialTrainingScope}
               onChange={(event) =>

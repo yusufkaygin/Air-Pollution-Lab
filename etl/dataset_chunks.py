@@ -5,7 +5,13 @@ from pathlib import Path
 from typing import Any
 
 DATASET_CHUNK_MANIFEST_VERSION = "dataset-chunk-manifest-v1"
-MAP_LAYER_KEYS = ("roads", "industries", "greenAreas", "elevationGrid")
+MAP_LAYER_KEYS = (
+    "neighborhoods",
+    "roads",
+    "industries",
+    "greenAreas",
+    "elevationGrid",
+)
 
 
 def _pollutant_chunk_name(pollutant: str) -> str:
@@ -21,6 +27,7 @@ def build_dataset_chunk_artifacts(dataset: dict[str, Any]) -> dict[str, Any]:
             "stations": dataset.get("stations", []),
             "contextMetrics": dataset.get("contextMetrics", []),
             "events": dataset.get("events", []),
+            "neighborhoods": [],
             "roads": [],
             "industries": [],
             "greenAreas": [],

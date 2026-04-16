@@ -2,6 +2,7 @@ import { addWeeks, subWeeks } from 'date-fns'
 import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ControlPanel } from './components/ControlPanel'
+import { DataExplorerPanel } from './components/DataExplorerPanel'
 import { ForecastPanel } from './components/ForecastPanel'
 import { InsightsPanel } from './components/InsightsPanel'
 import { MapPanel } from './components/MapPanel'
@@ -37,7 +38,14 @@ function App() {
   const [exporting, setExporting] = useState<'png' | null>(null)
   const reportRef = useRef<HTMLDivElement>(null)
   const { data, loading, error } = useDataset(filters.pollutant)
-  const mapLayers = useMapLayers(filters.activeLayers)
+  const requestedMapLayers = useMemo(
+    () => ({
+      ...filters.activeLayers,
+      neighborhoods: filters.activeLayers.neighborhoods || analysisTab === 'data-explorer',
+    }),
+    [analysisTab, filters.activeLayers],
+  )
+  const mapLayers = useMapLayers(requestedMapLayers)
   const analyticsFilters = useMemo<AnalyticsFilters>(
     () => ({
       pollutant: filters.pollutant,
@@ -66,7 +74,7 @@ function App() {
   const deferredAnalyticsFilters = useDeferredValue(analyticsFilters)
 
   useEffect(() => {
-    document.title = 'Hava Kirliligi Lab'
+    document.title = 'Hava Kirliliği Lab'
   }, [])
 
   useEffect(() => {
@@ -108,7 +116,9 @@ function App() {
   )
 
   const spatialAnalysisEnabled =
-    analysisTab !== 'general' ||
+    analysisTab === 'spatial' ||
+    analysisTab === 'spatial-stats' ||
+    analysisTab === 'forecast' ||
     filters.activeLayers.interpolationSurface ||
     filters.activeLayers.proximity ||
     filters.activeLayers.hotspots ||
@@ -346,9 +356,9 @@ function App() {
     return (
       <main className="app-shell loading-state">
         <div className="status-card">
-          <span className="eyebrow">Hava Kirliligi Lab</span>
-          <h1>Veri paketi yukleniyor</h1>
-          <p>Parcali veri dosyalari aciliyor; ekran hazir olur olmaz sonuçlar aninda guncellenecek.</p>
+          <span className="eyebrow">Hava Kirliliği Lab</span>
+          <h1>Veri paketi yükleniyor</h1>
+          <p>Parçalı veri dosyaları açılıyor; ekran hazır olur olmaz sonuçlar anında güncellenecek.</p>
         </div>
       </main>
     )
@@ -358,8 +368,8 @@ function App() {
     return (
       <main className="app-shell loading-state">
         <div className="status-card error">
-          <span className="eyebrow">Yukleme Hatasi</span>
-          <h1>Veri paketi acilamadi</h1>
+          <span className="eyebrow">Yükleme Hatası</span>
+          <h1>Veri paketi açılamadı</h1>
           <p>{error ?? 'Bilinmeyen hata'}</p>
         </div>
       </main>
@@ -371,11 +381,11 @@ function App() {
       <header className="hero-panel">
         <div className="hero-copy">
           <div className="hero-header-row">
-            <span className="eyebrow">Hava Kirliligi Lab</span>
+            <span className="eyebrow">Hava Kirliliği Lab</span>
           </div>
 
           <div className="hero-title-row">
-            <h1>Bursa Hava Kirliligi Laboratuvari</h1>
+            <h1>Bursa Hava Kirliliği Laboratuvarı</h1>
             <div className="export-actions hero-export-actions">
               <button
                 type="button"
@@ -384,7 +394,7 @@ function App() {
                   void exportRowsAsCsv(exportRows, exportFilename)
                 }}
               >
-                CSV disa aktar
+                CSV dışa aktar
               </button>
               <button
                 type="button"
@@ -392,15 +402,12 @@ function App() {
                 onClick={handlePngExport}
                 disabled={exporting !== null}
               >
-                {exporting === 'png' ? 'PNG hazirlaniyor' : 'PNG disa aktar'}
+                {exporting === 'png' ? 'PNG hazırlanıyor' : 'PNG dışa aktar'}
               </button>
             </div>
           </div>
 
-          <p>
-            Zaman serisi, meteoroloji baglami ve cevresel buffer metriklerini tek
-            arayuzde okur.
-          </p>
+          <p>Zaman serisi, meteoroloji bağlamı ve çevresel tampon metriklerini tek arayüzde okur.</p>
         </div>
       </header>
 
@@ -481,13 +488,22 @@ function App() {
                 forecast={spatialAnalysis.forecast}
               />
             )}
+
+            {analysisTab === 'data-explorer' && (
+              <DataExplorerPanel
+                dataset={data}
+                analysis={analysis}
+                filters={filters}
+                neighborhoods={mapLayers.neighborhoods ?? data.neighborhoods}
+              />
+            )}
           </div>
 
           <section className="card provenance-panel">
             <div className="section-heading">
               <div>
-                <span className="eyebrow">Veri Notlari</span>
-                <h3>Kaynaklar ve veri butunlugu</h3>
+                <span className="eyebrow">Veri Notları</span>
+                <h3>Kaynaklar ve veri bütünlüğü</h3>
               </div>
             </div>
 
@@ -502,13 +518,13 @@ function App() {
               </section>
 
               <section className="provenance-block">
-                <h4>Resmi ag veri butunlugu</h4>
+                <h4>Resmî ağ veri bütünlüğü</h4>
                 <div className="quality-strip footer-quality-strip">
                   {data.metadata.completenessOverview?.map((row) => (
                     <article key={row.pollutant} className="quality-pill">
                       <span>{row.pollutant}</span>
                       <strong>%{Math.round(row.completenessRatio * 100)}</strong>
-                      <small>veri dolulugu</small>
+                      <small>veri doluluğu</small>
                     </article>
                   ))}
                 </div>
@@ -517,7 +533,7 @@ function App() {
 
             {!!(data.metadata.completenessOverview?.length || visibleDataIssues.length) && (
               <section className="provenance-block provenance-issues">
-                <h4>Eksik veri ve kaynak uyarilari</h4>
+                <h4>Eksik veri ve kaynak uyarıları</h4>
                 <ul className="provenance-list">
                   {data.metadata.completenessOverview?.map((row) => (
                     <li key={`missing-${row.pollutant}`}>

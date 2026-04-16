@@ -32,6 +32,7 @@ OVERPASS_ENDPOINTS = (
 OPEN_METEO_ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 OPEN_METEO_AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 OPEN_METEO_ELEVATION_URL = "https://api.open-meteo.com/v1/elevation"
+BURSA_NEIGHBORHOODS_URL = "https://bapi.bursa.bel.tr/apigateway/bbbAcikVeri_Cbs/Mahalle"
 AIRQOON_API_URL = "https://map.airqoon.com/bursa/api"
 AIRQOON_V2_DEVICES_URL = f"{AIRQOON_API_URL}/v2/devices"
 EONET_EVENTS_URL = "https://eonet.gsfc.nasa.gov/api/v3/events"
@@ -434,6 +435,29 @@ def centroid(coords: list[tuple[float, float]]) -> tuple[float, float]:
     return lat, lng
 
 
+def point_in_polygon(lat: float, lng: float, coords: list[tuple[float, float]]) -> bool:
+    if len(coords) < 3:
+        return False
+
+    inside = False
+    ring = coords[:-1] if coords[0] == coords[-1] else coords
+    for index, (lat_a, lng_a) in enumerate(ring):
+        lat_b, lng_b = ring[(index + 1) % len(ring)]
+        intersects = ((lat_a > lat) != (lat_b > lat)) and (
+            lng < (lng_b - lng_a) * (lat - lat_a) / ((lat_b - lat_a) or 1e-12) + lng_a
+        )
+        if intersects:
+            inside = not inside
+
+    return inside
+
+
+def mean_or_none(values: list[float]) -> float | None:
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+
 class CacheSession:
     def __init__(self, raw_dir: Path, force_refresh: bool = False) -> None:
         self.raw_dir = raw_dir
@@ -667,6 +691,28 @@ def way_coordinates(element: dict[str, Any]) -> list[tuple[float, float]]:
     return [(float(point["lat"]), float(point["lon"])) for point in geometry]
 
 
+def geojson_outer_ring_coordinates(geometry: dict[str, Any]) -> list[tuple[float, float]]:
+    geometry_type = geometry.get("type")
+    coordinates = geometry.get("coordinates") or []
+    polygons: list[list[list[float]]] = []
+
+    if geometry_type == "Polygon":
+        polygons = coordinates
+    elif geometry_type == "MultiPolygon":
+        polygons = [polygon[0] for polygon in coordinates if polygon]
+
+    if not polygons:
+        return []
+
+    largest_ring = max(
+        polygons,
+        key=lambda ring: polygon_area_m2(
+            [(float(lat), float(lng)) for lng, lat in ring]
+        ),
+    )
+    return [(float(lat), float(lng)) for lng, lat in largest_ring]
+
+
 def fetch_layers(
     raw_dir: Path,
     bbox: dict[str, float],
@@ -776,6 +822,153 @@ def fetch_layers(
         )
 
     return roads, industries, green_areas
+
+
+def fetch_neighborhoods(
+    raw_dir: Path,
+    stations: list[dict[str, Any]],
+    roads: list[dict[str, Any]],
+    industries: list[dict[str, Any]],
+    green_areas: list[dict[str, Any]],
+    elevation_grid: list[dict[str, Any]],
+    context_metrics: list[dict[str, Any]],
+    force_refresh: bool = False,
+) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    payload = CacheSession(raw_dir, force_refresh=force_refresh).get_json(
+        BURSA_NEIGHBORHOODS_URL,
+        cache_name="neighborhoods_official_v1.json",
+        timeout=240,
+    )
+    context_lookup = {
+        metric["stationId"]: metric
+        for metric in context_metrics
+        if metric["radiusM"] == 1000
+    }
+    neighborhoods: list[dict[str, Any]] = []
+    issues: list[dict[str, str]] = []
+    seen_ids: set[str] = set()
+
+    for feature in payload.get("features", []):
+        geometry = feature.get("geometry") or {}
+        coords = geojson_outer_ring_coordinates(geometry)
+        if len(coords) < 3:
+            continue
+
+        if coords[0] != coords[-1]:
+            coords.append(coords[0])
+
+        properties = feature.get("properties") or {}
+        area_m2 = polygon_area_m2(coords)
+        if area_m2 < 150_000:
+            continue
+
+        name = (
+            properties.get("AD")
+            or properties.get("name")
+            or f"Mahalle {properties.get('ID') or properties.get('OBJECTID') or 'unknown'}"
+        )
+        neighborhood_id = slugify_station_id(
+            f"{properties.get('ID') or properties.get('OBJECTID') or name}-{name}"
+        )
+        if neighborhood_id in seen_ids:
+            continue
+
+        seen_ids.add(neighborhood_id)
+        center_lat, center_lng = centroid(coords)
+        member_station_ids = [
+            station["id"]
+            for station in stations
+            if point_in_polygon(station["lat"], station["lng"], coords)
+        ]
+        district_candidates = [
+            station["district"]
+            for station in stations
+            if station["id"] in member_station_ids and station.get("district")
+        ]
+        district = district_candidates[0] if district_candidates else None
+        station_contexts = [
+            context_lookup[station_id]
+            for station_id in member_station_ids
+            if station_id in context_lookup
+        ]
+        if not station_contexts:
+            nearby_stations = sorted(
+                stations,
+                key=lambda station: haversine_distance_m(
+                    center_lat,
+                    center_lng,
+                    station["lat"],
+                    station["lng"],
+                ),
+            )[:3]
+            station_contexts = [
+                context_lookup[station["id"]]
+                for station in nearby_stations
+                if station["id"] in context_lookup
+            ]
+
+        area_km2 = area_m2 / 1_000_000
+        building_density_proxy = mean_or_none(
+            [float(metric["buildingDensity"]) for metric in station_contexts]
+        )
+        road_density_proxy = mean_or_none(
+            [float(metric["roadDensity"]) for metric in station_contexts]
+        )
+        green_ratio_proxy = mean_or_none(
+            [float(metric["greenRatio"]) for metric in station_contexts]
+        )
+        mean_elevation_proxy = mean_or_none(
+            [float(metric["meanElevation"]) for metric in station_contexts]
+        )
+        slope_proxy = mean_or_none(
+            [float(metric["slopeMean"]) for metric in station_contexts]
+        )
+        industry_count_proxy = mean_or_none(
+            [float(metric["industryCount"]) for metric in station_contexts]
+        )
+
+        neighborhoods.append(
+            {
+                "id": neighborhood_id,
+                "name": name,
+                "district": district,
+                "center": {
+                    "lat": round(center_lat, 6),
+                    "lng": round(center_lng, 6),
+                },
+                "areaKm2": round(area_km2, 4),
+                "stationIds": member_station_ids,
+                "buildingCount": None,
+                "buildingDensity": round(building_density_proxy, 4)
+                if building_density_proxy is not None
+                else None,
+                "roadDensity": round(road_density_proxy, 4)
+                if road_density_proxy is not None
+                else None,
+                "industryCount": round(industry_count_proxy or 0),
+                "greenRatio": round(green_ratio_proxy, 4)
+                if green_ratio_proxy is not None
+                else None,
+                "meanElevation": round(mean_elevation_proxy, 2)
+                if mean_elevation_proxy is not None
+                else None,
+                "slopeMean": round(slope_proxy, 4) if slope_proxy is not None else None,
+                "coordinates": coords,
+            }
+        )
+
+    if neighborhoods:
+        issues.append(
+            {
+                "id": "neighborhood-building-density-proxy",
+                "severity": "info",
+                "source": "Bursa Açık Yeşil / Mahalle sınırları",
+                "message": "Mahalle bağlam metrikleri doğrudan polygon kesişimi yerine 1000 m istasyon bağlam metriklerinden türetilmiş proxy olarak hesaplandı.",
+            }
+        )
+
+    neighborhoods.sort(key=lambda item: ((item["district"] or ""), item["name"]))
+    return neighborhoods, issues
 
 
 def fetch_elevations(
@@ -1407,42 +1600,62 @@ def fetch_meteo_series(
     cache = CacheSession(raw_dir, force_refresh=force_refresh)
 
     for station in stations:
-        cache_name = f"meteo_{station['id']}_{start_date.isoformat()}_{end_date.isoformat()}.json"
-        payload = cache.get_json(
-            OPEN_METEO_ARCHIVE_URL,
-            params={
-                "latitude": station["lat"],
-                "longitude": station["lng"],
-                "start_date": start_date.isoformat(),
-                "end_date": end_date.isoformat(),
-                "daily": ",".join(
-                    [
-                        "temperature_2m_mean",
-                        "relative_humidity_2m_mean",
-                        "precipitation_sum",
-                        "wind_speed_10m_mean",
-                        "wind_direction_10m_dominant",
-                    ]
-                ),
-                "timezone": "GMT",
-            },
-            cache_name=cache_name,
-        )
+        cache_name = f"meteo_v2_{station['id']}_{start_date.isoformat()}_{end_date.isoformat()}.json"
+        legacy_cache_name = f"meteo_{station['id']}_{start_date.isoformat()}_{end_date.isoformat()}.json"
+        try:
+            payload = cache.get_json(
+                OPEN_METEO_ARCHIVE_URL,
+                params={
+                    "latitude": station["lat"],
+                    "longitude": station["lng"],
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat(),
+                    "daily": ",".join(
+                        [
+                            "temperature_2m_mean",
+                            "relative_humidity_2m_mean",
+                            "precipitation_sum",
+                            "wind_speed_10m_mean",
+                            "wind_direction_10m_dominant",
+                            "surface_pressure_mean",
+                        ]
+                    ),
+                    "timezone": "GMT",
+                },
+                cache_name=cache_name,
+            )
+        except requests.RequestException:
+            legacy_cache_path = raw_dir / legacy_cache_name
+            if not legacy_cache_path.exists():
+                raise
+            with legacy_cache_path.open("r", encoding="utf-8") as handle:
+                payload = json.load(handle)
         daily = payload.get("daily") or {}
+        temperature_values = daily.get("temperature_2m_mean") or []
+        humidity_values = daily.get("relative_humidity_2m_mean") or []
+        wind_speed_values = daily.get("wind_speed_10m_mean") or []
+        wind_direction_values = daily.get("wind_direction_10m_dominant") or []
+        surface_pressure_values = daily.get("surface_pressure_mean") or []
+        precipitation_values = daily.get("precipitation_sum") or []
 
         for index, day in enumerate(daily.get("time") or []):
             records.append(
                 {
                     "stationIdOrGridId": station["id"],
                     "timestamp": f"{day}T00:00:00Z",
-                    "temperatureC": float((daily.get("temperature_2m_mean") or [0])[index] or 0),
-                    "humidityPct": float((daily.get("relative_humidity_2m_mean") or [0])[index] or 0),
+                    "temperatureC": float((temperature_values[index] if index < len(temperature_values) else 0) or 0),
+                    "humidityPct": float((humidity_values[index] if index < len(humidity_values) else 0) or 0),
                     "windSpeedMs": round(
-                        float((daily.get("wind_speed_10m_mean") or [0])[index] or 0) / 3.6,
+                        float((wind_speed_values[index] if index < len(wind_speed_values) else 0) or 0) / 3.6,
                         4,
                     ),
-                    "windDirDeg": float((daily.get("wind_direction_10m_dominant") or [0])[index] or 0),
-                    "precipitationMm": float((daily.get("precipitation_sum") or [0])[index] or 0),
+                    "windDirDeg": float((wind_direction_values[index] if index < len(wind_direction_values) else 0) or 0),
+                    "surfacePressureHpa": (
+                        round(float(surface_pressure_values[index]), 2)
+                        if index < len(surface_pressure_values) and surface_pressure_values[index] is not None
+                        else None
+                    ),
+                    "precipitationMm": float((precipitation_values[index] if index < len(precipitation_values) else 0) or 0),
                     "source": "Open-Meteo Archive",
                 }
             )
@@ -1840,6 +2053,27 @@ def build_real_dataset(
         bbox,
         force_refresh=force_refresh,
     )
+    try:
+        neighborhoods, neighborhood_issues = fetch_neighborhoods(
+            layers_dir,
+            meteo_reference_stations,
+            roads,
+            industries,
+            green_areas,
+            elevation_grid,
+            context_metrics,
+            force_refresh=force_refresh,
+        )
+    except RuntimeError:
+        neighborhoods = []
+        neighborhood_issues = [
+            {
+                "id": "neighborhood-layer-unavailable",
+                "severity": "warning",
+                "source": "OSM / Mahalle sınırları",
+                "message": "Mahalle sınırı katmanı bu build sırasında alınamadı; uygulama bu katman olmadan devam edecek.",
+            }
+        ]
     fetched_events, fire_issues = fetch_fire_events(
         fire_dir,
         bbox,
@@ -1950,6 +2184,7 @@ def build_real_dataset(
     issues.extend(airqoon_issues)
     issues.extend(municipal_official_issues)
     issues.extend(modeled_issues)
+    issues.extend(neighborhood_issues)
     issues.extend(fire_issues)
 
     return {
@@ -1962,18 +2197,19 @@ def build_real_dataset(
             "methods": [
                 "Resmî günlük istasyon verisi aylık chunk sorguları",
                 "Airqoon / belediye sensör ağı günlük PM10-PM2.5 yardımcı serisi",
-                "Bursa Büyükşehir Belediyesi düzenlenmiş saatlik istasyon dosyasından günlük resmi belediye serisi",
+                "Bursa Büyükşehir Belediyesi düzenlenmiş saatlik istasyon dosyasından günlük resmî belediye serisi",
                 "Open-Meteo Air Quality model tabanlı günlük yardımcı seri",
-                "Open-Meteo günlük meteoroloji arşivi",
-                "OSM/Overpass tabanlı yol, yeşil alan ve sanayi katmanları",
+                "Open-Meteo günlük meteoroloji arşivi ve yüzey basıncı özeti",
+                "OSM/Overpass tabanlı yol, yeşil alan, sanayi ve mahalle sınırı katmanları",
                 "Buffer bazlı bağlamsal özet metrikler",
-                "Open-Meteo elevation endpoint ile yükseklik ve eğim kestirimi",
+                "Open-Meteo Elevation API üzerinden Copernicus DEM tabanlı yükseklik ve eğim ızgarası",
             ],
             "sourceNotes": [
                 OFFICIAL_PAGE_URL,
                 AIRQOON_V2_DEVICES_URL,
                 OPEN_METEO_AIR_QUALITY_URL,
                 OPEN_METEO_ARCHIVE_URL,
+                "https://open-meteo.com/en/docs/elevation-api",
                 "https://overpass-api.de/api/interpreter",
                 *municipal_official_source_notes,
                 *event_source_notes,
@@ -1987,6 +2223,7 @@ def build_real_dataset(
         "meteoTimeSeries": meteo_series,
         "contextMetrics": context_metrics,
         "events": events,
+        "neighborhoods": neighborhoods,
         "roads": roads,
         "industries": industries,
         "greenAreas": green_areas,

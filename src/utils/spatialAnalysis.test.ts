@@ -527,6 +527,7 @@ const dataset: BursaDataset = {
       note: 'test',
     },
   ],
+  neighborhoods: [],
   roads: [],
   industries: [],
   greenAreas: [],

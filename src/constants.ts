@@ -39,8 +39,8 @@ export const SPATIAL_TRAINING_SCOPES: Array<{
   value: SpatialTrainingScope
   label: string
 }> = [
-  { value: 'measured', label: 'Olculen istasyonlar' },
-  { value: 'measured-plus-sensor', label: 'Olculen + belediye sensoru' },
+  { value: 'measured', label: 'Ölçülen istasyonlar' },
+  { value: 'measured-plus-sensor', label: 'Ölçülen + belediye sensörü' },
 ]
 
 export const ANALYSIS_TABS: Array<{
@@ -48,9 +48,10 @@ export const ANALYSIS_TABS: Array<{
   label: string
 }> = [
   { value: 'general', label: 'Genel' },
-  { value: 'spatial', label: 'Mekansal' },
-  { value: 'spatial-stats', label: 'Mekansal Istatistik' },
+  { value: 'spatial', label: 'Mekânsal' },
+  { value: 'spatial-stats', label: 'Mekânsal İstatistik' },
   { value: 'forecast', label: 'Tahmin' },
+  { value: 'data-explorer', label: 'Veri Gezgini' },
 ]
 
 export const STATION_SOURCE_SCOPES: Array<{
@@ -58,7 +59,7 @@ export const STATION_SOURCE_SCOPES: Array<{
   label: string
 }> = [
   { value: 'official', label: 'Resmî istasyonlar' },
-  { value: 'municipal-official', label: 'Resmi belediye' },
+  { value: 'municipal-official', label: 'Resmî belediye' },
   { value: 'sensor', label: 'Belediye sensör ağı' },
   { value: 'modeled', label: 'Model tabanlı seri' },
   { value: 'all', label: 'Tümü' },
@@ -66,15 +67,18 @@ export const STATION_SOURCE_SCOPES: Array<{
 
 export const LAYER_LABELS: Record<LayerKey, string> = {
   pollutionSurface: 'Kirlilik bulutu',
-  interpolationSurface: 'Bilimsel yuzey',
+  interpolationSurface: 'Bilimsel yüzey',
   hotspots: 'Hotspot',
-  risk: 'Cevresel risk',
-  proximity: 'Yakinlik',
+  risk: 'Çevresel risk',
+  proximity: 'Yakınlık',
   stations: 'İstasyonlar',
+  windVectors: 'Rüzgâr yönü',
+  eventMarkers: 'Olay işaretleri',
+  neighborhoods: 'Mahalle sınırları',
   roads: 'Yollar',
   industries: 'Sanayi/fabrika',
   greenAreas: 'Yeşil alan',
-  elevation: 'Yükseklik',
+  elevation: 'DEM',
 }
 
 export const SCREENING_THRESHOLDS: Record<Pollutant, number> = {
@@ -105,6 +109,9 @@ export const DEFAULT_FILTERS: FilterState = {
     risk: false,
     proximity: false,
     stations: true,
+    windVectors: false,
+    eventMarkers: true,
+    neighborhoods: false,
     roads: false,
     industries: false,
     greenAreas: true,

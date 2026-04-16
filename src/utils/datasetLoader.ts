@@ -4,6 +4,7 @@ import type {
   LineFeature,
   MapLayerBundle,
   MeteoTimeSeriesRecord,
+  NeighborhoodFeature,
   PointFeature,
   Pollutant,
   PolygonFeature,
@@ -18,7 +19,7 @@ const LEGACY_DATASET_URL = '/data/bursa-air-quality-v1.json'
 type MapLayerKey = keyof MapLayerBundle
 type LayerLoadState = Pick<
   FilterState['activeLayers'],
-  'roads' | 'industries' | 'greenAreas' | 'elevation'
+  'neighborhoods' | 'roads' | 'industries' | 'greenAreas' | 'elevation'
 >
 
 interface DatasetManifest {
@@ -36,6 +37,7 @@ interface DatasetCorePayload {
   stations: Station[]
   contextMetrics: StationContextMetric[]
   events: BursaDataset['events']
+  neighborhoods?: NeighborhoodFeature[]
   roads?: LineFeature[]
   industries?: PointFeature[]
   greenAreas?: PolygonFeature[]
@@ -211,8 +213,13 @@ async function loadLayerChunk(
     return existingPromise
   }
 
+  const path = manifest.layerPaths[layerKey]
+  if (!path) {
+    return [] as MapLayerBundle[MapLayerKey]
+  }
+
   const request = fetchJson<MapLayerBundle[MapLayerKey]>(
-    chunkUrl(manifest.layerPaths[layerKey]),
+    chunkUrl(path),
   ).then((payload) => {
     layerCache.set(layerKey, payload)
     return payload
@@ -247,6 +254,7 @@ export async function loadBaseDataset(
     meteoTimeSeries,
     contextMetrics: core.contextMetrics,
     events: core.events,
+    neighborhoods: core.neighborhoods ?? [],
     roads: [],
     industries: [],
     greenAreas: [],
@@ -263,6 +271,7 @@ export async function loadMapLayers(
   }
 
   const requestedKeys = (Object.entries({
+    neighborhoods: activeLayers.neighborhoods,
     roads: activeLayers.roads,
     industries: activeLayers.industries,
     greenAreas: activeLayers.greenAreas,
@@ -292,6 +301,7 @@ export function mergeDatasetWithLayers(
 
   return {
     ...dataset,
+    neighborhoods: layers.neighborhoods ?? dataset.neighborhoods,
     roads: layers.roads ?? dataset.roads,
     industries: layers.industries ?? dataset.industries,
     greenAreas: layers.greenAreas ?? dataset.greenAreas,

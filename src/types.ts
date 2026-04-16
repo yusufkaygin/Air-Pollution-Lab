@@ -14,7 +14,12 @@ export type StationDataSource =
 export type TimeResolution = 'day' | 'month' | 'season' | 'year'
 export type SurfaceMethod = 'idw' | 'kriging'
 export type SpatialTrainingScope = 'measured' | 'measured-plus-sensor'
-export type AnalysisTab = 'general' | 'spatial' | 'spatial-stats' | 'forecast'
+export type AnalysisTab =
+  | 'general'
+  | 'spatial'
+  | 'spatial-stats'
+  | 'forecast'
+  | 'data-explorer'
 
 export type EventType =
   | 'fire'
@@ -36,6 +41,9 @@ export type LayerKey =
   | 'risk'
   | 'proximity'
   | 'stations'
+  | 'windVectors'
+  | 'eventMarkers'
+  | 'neighborhoods'
   | 'roads'
   | 'industries'
   | 'greenAreas'
@@ -113,6 +121,7 @@ export interface MeteoTimeSeriesRecord {
   humidityPct: number
   windSpeedMs: number
   windDirDeg: number
+  surfacePressureHpa: number | null
   precipitationMm: number
   source: string
 }
@@ -171,6 +180,26 @@ export interface PolygonFeature {
   coordinates: [number, number][]
 }
 
+export interface NeighborhoodFeature {
+  id: string
+  name: string
+  district: string | null
+  center: {
+    lat: number
+    lng: number
+  }
+  areaKm2: number
+  stationIds: string[]
+  buildingCount: number | null
+  buildingDensity: number | null
+  roadDensity: number | null
+  industryCount: number
+  greenRatio: number | null
+  meanElevation: number | null
+  slopeMean: number | null
+  coordinates: [number, number][]
+}
+
 export interface BursaDataset {
   metadata: DatasetMetadata
   stations: Station[]
@@ -178,6 +207,7 @@ export interface BursaDataset {
   meteoTimeSeries: MeteoTimeSeriesRecord[]
   contextMetrics: StationContextMetric[]
   events: EventCatalogItem[]
+  neighborhoods: NeighborhoodFeature[]
   roads: LineFeature[]
   industries: PointFeature[]
   greenAreas: PolygonFeature[]
@@ -185,6 +215,7 @@ export interface BursaDataset {
 }
 
 export interface MapLayerBundle {
+  neighborhoods: NeighborhoodFeature[]
   roads: LineFeature[]
   industries: PointFeature[]
   greenAreas: PolygonFeature[]

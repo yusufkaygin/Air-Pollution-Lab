@@ -22,6 +22,7 @@ import type {
   BursaDataset,
   FilterState,
   MapLayerBundle,
+  NeighborhoodFeature,
   PolygonFeature,
 } from '../types'
 import { formatNumber } from '../utils/format'
@@ -68,6 +69,16 @@ interface ElevationFeatureProperties {
 interface ElevationSurface {
   fills: FeatureCollection<Geometry, ElevationFeatureProperties>
   contours: FeatureCollection<Geometry, ElevationFeatureProperties>
+}
+
+interface WindStationView {
+  station: BursaDataset['stations'][number]
+  meteo: {
+    timestamp: string
+    windDirDeg: number
+    windSpeedMs: number
+    surfacePressureHpa: number | null
+  }
 }
 
 type PlumeLayerStyle = CSSProperties & {
@@ -216,6 +227,48 @@ function stationIcon(color: string, selected: boolean) {
       </div>
     `,
   })
+}
+
+function windVectorIcon(directionDeg: number, speedMs: number) {
+  const magnitude = Math.max(0.8, Math.min(speedMs / 4, 1.6))
+
+  return divIcon({
+    className: 'map-div-icon',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    tooltipAnchor: [0, -18],
+    html: `
+      <div class="map-marker wind-marker" style="--wind-rotation:${directionDeg}deg;--wind-scale:${magnitude}">
+        <span class="wind-stem"></span>
+        <span class="wind-head"></span>
+      </div>
+    `,
+  })
+}
+
+function eventIcon(kind: string) {
+  return divIcon({
+    className: 'map-div-icon',
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    tooltipAnchor: [0, -16],
+    html: `
+      <div class="map-marker event-marker" data-kind="${escapeHtml(kind)}">
+        <span class="event-core"></span>
+      </div>
+    `,
+  })
+}
+
+function isInsideRange(timestamp: string, startDate: string, endDate: string) {
+  const day = timestamp.slice(0, 10)
+  if (startDate && day < startDate) {
+    return false
+  }
+  if (endDate && day > endDate) {
+    return false
+  }
+  return true
 }
 
 function industryIcon(category: string) {
@@ -486,6 +539,7 @@ export function MapPanel({
   const boundaryRings = boundaryToLeafletRings(boundary)
   const selectionBand = pollutionBand(selectedSnapshot?.currentValue ?? 0)
   const roads = mapLayers.roads ?? dataset.roads
+  const neighborhoods = mapLayers.neighborhoods ?? dataset.neighborhoods
   const industries = mapLayers.industries ?? dataset.industries
   const greenAreas = mapLayers.greenAreas ?? dataset.greenAreas
   const elevationGrid = mapLayers.elevationGrid ?? dataset.elevationGrid
@@ -523,6 +577,53 @@ export function MapPanel({
   const hotspotStations =
     spatialStats?.hotspots.filter((hotspot) => Math.abs(hotspot.zScore) >= 1.65) ?? []
   const riskCells = riskOverlay?.cells ?? []
+  const latestMeteoByStationId = useMemo(() => {
+    const lookup = new Map<
+      string,
+      {
+        timestamp: string
+        windDirDeg: number
+        windSpeedMs: number
+        surfacePressureHpa: number | null
+      }
+    >()
+
+    for (const record of dataset.meteoTimeSeries) {
+      if (!isInsideRange(record.timestamp, filters.startDate, filters.endDate)) {
+        continue
+      }
+      const existing = lookup.get(record.stationIdOrGridId)
+      if (!existing || existing.timestamp < record.timestamp) {
+        lookup.set(record.stationIdOrGridId, {
+          timestamp: record.timestamp,
+          windDirDeg: record.windDirDeg,
+          windSpeedMs: record.windSpeedMs,
+          surfacePressureHpa: record.surfacePressureHpa,
+        })
+      }
+    }
+
+    return lookup
+  }, [dataset.meteoTimeSeries, filters.endDate, filters.startDate])
+  const visibleWindStations = useMemo(
+    () =>
+      visibleStations
+        .map((station) => ({
+          station,
+          meteo: latestMeteoByStationId.get(station.id) ?? null,
+        }))
+        .filter((item): item is WindStationView => item.meteo !== null && item.meteo.windSpeedMs > 0.2),
+    [latestMeteoByStationId, visibleStations],
+  )
+  const visibleEvents = useMemo(
+    () =>
+      dataset.events.filter(
+        (event) =>
+          (!filters.startDate || event.endDate.slice(0, 10) >= filters.startDate) &&
+          (!filters.endDate || event.startDate.slice(0, 10) <= filters.endDate),
+      ),
+    [dataset.events, filters.endDate, filters.startDate],
+  )
 
   useEffect(() => {
     const controller = new AbortController()
@@ -715,6 +816,39 @@ export function MapPanel({
             </Pane>
           )}
 
+          {filters.activeLayers.neighborhoods && !!neighborhoods.length && (
+            <Pane name="neighborhoods" style={{ zIndex: 330 }}>
+              {neighborhoods.map((neighborhood: NeighborhoodFeature) => (
+                <Polygon
+                  key={neighborhood.id}
+                  positions={neighborhood.coordinates.map(([lat, lng]) => [lat, lng])}
+                  pathOptions={{
+                    color: '#1f6f8b',
+                    fillColor: '#7dd3fc',
+                    fillOpacity: 0.04,
+                    opacity: 0.48,
+                    weight: 1,
+                    dashArray: '5 6',
+                  }}
+                >
+                  <Tooltip sticky className="map-tooltip">
+                    <strong>{neighborhood.name}</strong>
+                    <br />
+                    İlçe: {neighborhood.district ?? 'Belirsiz'}
+                    <br />
+                    İstasyon: {neighborhood.stationIds.length}
+                    <br />
+                    Yol yoğunluğu: {formatNumber(neighborhood.roadDensity, 2)}
+                    <br />
+                    Sanayi: {neighborhood.industryCount}
+                    <br />
+                    Yeşil oran: {formatNumber((neighborhood.greenRatio ?? 0) * 100, 0)}%
+                  </Tooltip>
+                </Polygon>
+              ))}
+            </Pane>
+          )}
+
           {filters.activeLayers.interpolationSurface && !!scientificSurfaceCells.length && (
             <Pane name="scientific-surface" style={{ zIndex: 348 }}>
               {scientificSurfaceCells.map((cell) => {
@@ -878,6 +1012,28 @@ export function MapPanel({
             </Pane>
           )}
 
+          {filters.activeLayers.eventMarkers && !!visibleEvents.length && (
+            <Pane name="events" style={{ zIndex: 525 }}>
+              {visibleEvents.map((event) => (
+                <Marker
+                  key={event.eventId}
+                  position={[event.center.lat, event.center.lng]}
+                  icon={eventIcon(event.eventType)}
+                >
+                  <Tooltip sticky className="map-tooltip">
+                    <strong>{event.name}</strong>
+                    <br />
+                    Tür: {event.eventType}
+                    <br />
+                    Aralık: {event.startDate.slice(0, 10)} → {event.endDate.slice(0, 10)}
+                    <br />
+                    Kaynak: {event.source}
+                  </Tooltip>
+                </Marker>
+              ))}
+            </Pane>
+          )}
+
           {filters.activeLayers.risk && !!riskCells.length && (
             <Pane name="risk" style={{ zIndex: 540 }}>
               {riskCells.map((cell) => {
@@ -982,6 +1138,28 @@ export function MapPanel({
                   </Polygon>
                 )
               })}
+            </Pane>
+          )}
+
+          {filters.activeLayers.windVectors && !!visibleWindStations.length && (
+            <Pane name="wind-vectors" style={{ zIndex: 655 }}>
+              {visibleWindStations.map(({ station, meteo }) => (
+                <Marker
+                  key={`wind-${station.id}`}
+                  position={[station.lat, station.lng]}
+                  icon={windVectorIcon(meteo.windDirDeg, meteo.windSpeedMs)}
+                >
+                  <Tooltip sticky className="map-tooltip">
+                    <strong>{station.name}</strong>
+                    <br />
+                    Rüzgâr: {formatNumber(meteo.windSpeedMs, 1)} m/s · {formatNumber(meteo.windDirDeg, 0)}°
+                    <br />
+                    Basınç: {formatNumber(meteo.surfacePressureHpa, 1)} hPa
+                    <br />
+                    Gün: {meteo.timestamp.slice(0, 10)}
+                  </Tooltip>
+                </Marker>
+              ))}
             </Pane>
           )}
 
@@ -1126,6 +1304,36 @@ export function MapPanel({
               <div className="legend-row">
                 <span className="legend-dot" style={{ background: '#991b1b' }} />
                 <span>Cok yuksek</span>
+              </div>
+            </div>
+          )}
+
+          {filters.activeLayers.neighborhoods && !!neighborhoods.length && (
+            <div className="legend-block">
+              <strong>Mahalle katmanı</strong>
+              <div className="legend-row">
+                <span className="legend-chip scientific-outline" />
+                <span>Mahalle sınırları ve statik özetler</span>
+              </div>
+            </div>
+          )}
+
+          {filters.activeLayers.windVectors && !!visibleWindStations.length && (
+            <div className="legend-block">
+              <strong>Rüzgâr yönü</strong>
+              <div className="legend-row">
+                <span className="legend-marker wind" />
+                <span>Yön oku, hız ile ölçeklenir</span>
+              </div>
+            </div>
+          )}
+
+          {filters.activeLayers.eventMarkers && !!visibleEvents.length && (
+            <div className="legend-block">
+              <strong>Olay işaretleri</strong>
+              <div className="legend-row">
+                <span className="legend-marker event" />
+                <span>Yangın, toz taşınımı ve rüzgâr olayı</span>
               </div>
             </div>
           )}

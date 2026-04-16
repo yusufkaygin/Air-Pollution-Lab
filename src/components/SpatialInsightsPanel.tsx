@@ -14,14 +14,14 @@ interface SpatialInsightsPanelProps {
 
 function proximityLabel(value: number) {
   if (value >= 0.7) {
-    return 'Yuksek'
+    return 'Yüksek'
   }
 
   if (value >= 0.45) {
     return 'Orta'
   }
 
-  return 'Dusuk'
+  return 'Düşük'
 }
 
 function surfaceMethodLabel(value: FilterState['surfaceMethod']) {
@@ -30,12 +30,12 @@ function surfaceMethodLabel(value: FilterState['surfaceMethod']) {
 
 function trainingScopeLabel(value: FilterState['spatialTrainingScope']) {
   return value === 'measured'
-    ? 'Olculen istasyonlar'
-    : 'Olculen + belediye sensoru'
+    ? 'Ölçülen istasyonlar'
+    : 'Ölçülen + belediye sensörü'
 }
 
 function cellName(cell: SpatialCellView) {
-  return `Hucre ${cell.row + 1}-${cell.col + 1}`
+  return `Hücre ${cell.row + 1}-${cell.col + 1}`
 }
 
 function CellMetricTable({
@@ -51,7 +51,7 @@ function CellMetricTable({
     <section className="card table-card spatial-table-card">
       <div className="section-heading">
         <div>
-          <span className="eyebrow">Mekansal Ozet</span>
+          <span className="eyebrow">Mekânsal Özet</span>
           <h3>{title}</h3>
         </div>
         <p>{description}</p>
@@ -61,12 +61,12 @@ function CellMetricTable({
         <table>
           <thead>
             <tr>
-              <th>Hucre</th>
-              <th>Deger</th>
-              <th>Asim orani</th>
+              <th>Hücre</th>
+              <th>Değer</th>
+              <th>Aşım oranı</th>
               <th>Yola mesafe</th>
               <th>Sanayi mesafe</th>
-              <th>Yakinlik</th>
+              <th>Yakınlık</th>
             </tr>
           </thead>
           <tbody>
@@ -100,10 +100,10 @@ export function SpatialInsightsPanel({
       <section className="card spatial-placeholder-card">
         <div className="section-heading">
           <div>
-            <span className="eyebrow">Mekansal Analiz</span>
-            <h3>Paket yukleniyor</h3>
+            <span className="eyebrow">Mekânsal Analiz</span>
+            <h3>Paket yükleniyor</h3>
           </div>
-          <p>Aktif kirletici icin aylik yuzeyler ve hucre ozellikleri getiriliyor.</p>
+          <p>Aktif kirletici için aylık yüzeyler ve hücre özellikleri getiriliyor.</p>
         </div>
       </section>
     )
@@ -114,8 +114,8 @@ export function SpatialInsightsPanel({
       <section className="card spatial-placeholder-card">
         <div className="section-heading">
           <div>
-            <span className="eyebrow">Mekansal Analiz</span>
-            <h3>Paket acilamadi</h3>
+            <span className="eyebrow">Mekânsal Analiz</span>
+            <h3>Paket açılamadı</h3>
           </div>
           <p>{error}</p>
         </div>
@@ -128,10 +128,10 @@ export function SpatialInsightsPanel({
       <section className="card spatial-placeholder-card">
         <div className="section-heading">
           <div>
-            <span className="eyebrow">Mekansal Analiz</span>
+            <span className="eyebrow">Mekânsal Analiz</span>
             <h3>Bu kombinasyon desteklenmiyor</h3>
           </div>
-          <p>{unsupportedReason ?? surface?.unsupportedReason ?? 'Kullanilabilir mekansal dilim yok.'}</p>
+          <p>{unsupportedReason ?? surface?.unsupportedReason ?? 'Kullanılabilir mekânsal dilim yok.'}</p>
         </div>
       </section>
     )
@@ -147,42 +147,42 @@ export function SpatialInsightsPanel({
       <section className="card cards-card">
         <div className="section-heading">
           <div>
-            <span className="eyebrow">Mekansal Ozet</span>
-            <h3>Bilimsel yuzey okumalari</h3>
+            <span className="eyebrow">Mekânsal Özet</span>
+            <h3>Bilimsel yüzey okumaları</h3>
           </div>
           <p>
             {surface.label} dilimi, {surfaceMethodLabel(surface.effectiveMethod)} ve{' '}
-            {trainingScopeLabel(surface.trainingScope)} ile birlestirildi.
+            {trainingScopeLabel(surface.trainingScope)} ile birleştirildi.
           </p>
         </div>
 
         <div className="metric-grid">
           <article className="metric-card">
-            <span>En kirli hucre</span>
+            <span>En kirli hücre</span>
             <strong>{topCell ? cellName(topCell) : 'Yok'}</strong>
-            <small>{topCell ? `${formatNumber(topCell.value)} ug/m3` : 'Hesaplanamadi'}</small>
+            <small>{topCell ? `${formatNumber(topCell.value)} µg/m3` : 'Hesaplanamadı'}</small>
           </article>
           <article className="metric-card">
-            <span>En temiz hucre</span>
+            <span>En temiz hücre</span>
             <strong>{cleanCell ? cellName(cleanCell) : 'Yok'}</strong>
-            <small>{cleanCell ? `${formatNumber(cleanCell.value)} ug/m3` : 'Hesaplanamadi'}</small>
+            <small>{cleanCell ? `${formatNumber(cleanCell.value)} µg/m3` : 'Hesaplanamadı'}</small>
           </article>
           <article className="metric-card">
-            <span>En yogun asim</span>
+            <span>En yoğun aşım</span>
             <strong>{exceedanceCell ? cellName(exceedanceCell) : 'Yok'}</strong>
             <small>
               {exceedanceCell
-                ? `%${Math.round((exceedanceCell.exceedanceRatio ?? 0) * 100)} gun`
-                : 'Hesaplanamadi'}
+                ? `%${Math.round((exceedanceCell.exceedanceRatio ?? 0) * 100)} gün`
+                : 'Hesaplanamadı'}
             </small>
           </article>
           <article className="metric-card">
-            <span>Yakinlik baskisi</span>
+            <span>Yakınlık baskısı</span>
             <strong>{proximityCell ? cellName(proximityCell) : 'Yok'}</strong>
             <small>
               {proximityCell
                 ? proximityLabel(proximityCell.proximityIndex)
-                : 'Hesaplanamadi'}
+                : 'Hesaplanamadı'}
             </small>
           </article>
         </div>
@@ -190,10 +190,10 @@ export function SpatialInsightsPanel({
         <div className="spatial-method-notes">
           <div className="diagnostic-card diagnostic-card-neutral">
             <div className="diagnostic-card-head">
-              <h4>Yontem</h4>
+              <h4>Yöntem</h4>
               <InfoHint
-                label="Yuzey yontemi"
-                hint="Kriging yalnizca 10+ istasyon ve LOOCV RMSE avantaji varsa acilir. Uygun degilse uygulama IDW'ye geri doner."
+                label="Yüzey yöntemi"
+                hint="Kriging yalnızca 10+ istasyon ve LOOCV RMSE avantajı varsa açılır. Uygun değilse uygulama IDW'ye geri döner."
               />
             </div>
             <strong>{surfaceMethodLabel(filters.surfaceMethod)}</strong>
@@ -203,14 +203,14 @@ export function SpatialInsightsPanel({
           </div>
           <div className="diagnostic-card diagnostic-card-cool">
             <div className="diagnostic-card-head">
-              <h4>Egitim kumesi</h4>
+              <h4>Eğitim kümesi</h4>
               <InfoHint
-                label="Egitim kumesi"
-                hint="Varsayilan kapsam olculmus istasyonlardir. Model tabanli seri hicbir zaman yuzey egitimine dahil edilmez."
+                label="Eğitim kümesi"
+                hint="Varsayılan kapsam ölçülmüş istasyonlardır. Model tabanlı seri hiçbir zaman yüzey eğitimine dahil edilmez."
               />
             </div>
             <strong>{trainingScopeLabel(surface.trainingScope)}</strong>
-            <p>{surface.days} gunluk gozlem penceresi birlestirildi.</p>
+            <p>{surface.days} günlük gözlem penceresi birleştirildi.</p>
           </div>
         </div>
 
@@ -224,20 +224,20 @@ export function SpatialInsightsPanel({
       </section>
 
       <CellMetricTable
-        title="Kirli huceler"
-        description="Yuzey ortalamasina gore en yuksek hucreler."
+        title="Kirli hücreler"
+        description="Yüzey ortalamasına göre en yüksek hücreler."
         cells={surface.topPollutedCells}
       />
 
       <CellMetricTable
-        title="Asim yogunlugu"
-        description="Esik ustu gun orani en yuksek hucreler."
+        title="Aşım yoğunluğu"
+        description="Eşik üstü gün oranı en yüksek hücreler."
         cells={surface.highestExceedanceCells}
       />
 
       <CellMetricTable
-        title="Yakinlik baskisi"
-        description="Yol ve sanayi etkisine en acik hucreler."
+        title="Yakınlık baskısı"
+        description="Yol ve sanayi etkisine en açık hücreler."
         cells={surface.highestProximityCells}
       />
     </div>

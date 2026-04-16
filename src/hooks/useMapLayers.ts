@@ -11,6 +11,7 @@ export function useMapLayers(activeLayers: FilterState['activeLayers']) {
     elevation,
     greenAreas,
     industries,
+    neighborhoods,
     roads,
   } = activeLayers
 
@@ -23,6 +24,7 @@ export function useMapLayers(activeLayers: FilterState['activeLayers']) {
           elevation,
           greenAreas,
           industries,
+          neighborhoods,
           roads,
         })
         if (cancelled) {
@@ -47,7 +49,7 @@ export function useMapLayers(activeLayers: FilterState['activeLayers']) {
     return () => {
       cancelled = true
     }
-  }, [elevation, greenAreas, industries, roads])
+  }, [elevation, greenAreas, industries, neighborhoods, roads])
 
   return layers
 }
